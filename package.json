@@ -1,12 +1,15 @@
 {
   "name": "logseq-todos-in-obsidian",
-  "version": "1.0.0",
+  "version": "0.1.1",
   "description": "Display Logseq todos in Obsidian sidebar with full status support",
   "main": "main.js",
   "scripts": {
     "build": "tsc -noEmit && node esbuild.config.mjs",
     "dev": "tsc -noEmit && node esbuild.config.mjs --watch",
-    "clean": "rm -f main.js styles.css"
+    "clean": "rm -f main.js styles.css",
+    "version:patch": "node scripts/bump-version.js patch",
+    "version:minor": "node scripts/bump-version.js minor",
+    "version:major": "node scripts/bump-version.js major"
   },
   "keywords": [
     "obsidian",
