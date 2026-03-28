@@ -1,5 +1,6 @@
 import { MarkdownPostProcessor, Plugin } from 'obsidian';
 import { STATUS_ICONS, STATUS_COLORS, TodoStatus } from './TodoItem';
+import { logseqEditorExtensions } from './EditorExtension';
 
 export class LogseqRenderer {
     private plugin: Plugin;
@@ -11,6 +12,7 @@ export class LogseqRenderer {
 
     register(): void {
         this.registerTaskStatusStyles();
+        this.plugin.registerEditorExtension(logseqEditorExtensions);
         this.registerTaskStatusProcessor();
         this.registerBlockRefPostProcessor();
         this.registerScheduledPostProcessor();

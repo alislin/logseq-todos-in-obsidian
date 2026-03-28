@@ -8,7 +8,12 @@
     "dev": "tsc -noEmit && node esbuild.config.mjs --watch",
     "clean": "rm -f main.js styles.css"
   },
-  "keywords": ["obsidian", "plugin", "logseq", "todo"],
+  "keywords": [
+    "obsidian",
+    "plugin",
+    "logseq",
+    "todo"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {

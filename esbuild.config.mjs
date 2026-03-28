@@ -5,7 +5,7 @@ const watch = process.argv.includes('--watch');
 const context = await esbuild.context({
 	entryPoints: ['src/main.ts'],
 	bundle: true,
-	external: ['obsidian'],
+	external: ['obsidian', '@codemirror/state', '@codemirror/view'],
 	platform: 'browser',
 	target: 'es2022',
 	format: 'cjs',
