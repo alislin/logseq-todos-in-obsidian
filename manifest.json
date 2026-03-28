@@ -1,0 +1,12 @@
+{
+	"id": "logseq-todos-in-obsidian",
+	"name": "Logseq Todos",
+	"version": "1.0.0",
+	"minAppVersion": "1.0.0",
+	"description": "Display Logseq todos in Obsidian sidebar with full status support (NOW, DOING, LATER, TODO, DONE, CANCELLED)",
+	"author": "",
+	"fundingUrl": "",
+	"isDesktopOnly": false,
+	"main": "main.js",
+	"styles": ["styles.css"]
+}

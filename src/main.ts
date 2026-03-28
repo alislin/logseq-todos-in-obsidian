@@ -1,0 +1,155 @@
+import { App, Plugin, WorkspaceLeaf, setIcon, PluginManifest, TFile } from 'obsidian';
+import { LogseqSettings, DEFAULT_SETTINGS } from './TodoItem';
+import { TodoView, VIEW_TYPE_LOGSEQ_TODOS } from './TodoView';
+import { LogseqRenderer } from './LogseqRenderer';
+import { SettingsTab } from './SettingsTab';
+
+export class LogseqTodosPlugin extends Plugin {
+	public settings: LogseqSettings;
+	private todoView: TodoView | null = null;
+	private renderer: LogseqRenderer | null = null;
+	private refreshInterval: ReturnType<typeof setInterval> | null = null;
+
+	constructor(app: App, manifest: PluginManifest) {
+		super(app, manifest);
+		this.settings = { ...DEFAULT_SETTINGS };
+	}
+
+	async onload(): Promise<void> {
+		console.log('Logseq Todos plugin loading...');
+
+		await this.loadSettings();
+
+		this.renderer = new LogseqRenderer(this);
+		this.renderer.register();
+
+		this.addRibbonIcon('list-todo', 'Logseq Todos', async () => {
+			await this.toggleView();
+		});
+
+		this.addCommand({
+			id: 'toggle-logseq-todos',
+			name: 'Toggle Logseq Todos View',
+			callback: async () => {
+				await this.toggleView();
+			}
+		});
+
+		this.addCommand({
+			id: 'refresh-logseq-todos',
+			name: 'Refresh Logseq Todos',
+			callback: async () => {
+				await this.refreshTodos();
+			}
+		});
+
+		this.registerView(
+			VIEW_TYPE_LOGSEQ_TODOS,
+			(leaf) => {
+				this.todoView = new TodoView(leaf, this);
+				return this.todoView;
+			}
+		);
+
+		this.addSettingTab(new SettingsTab(this.app, this));
+
+		this.setupAutoRefresh();
+
+		this.registerEvent(this.app.workspace.on('file-open', () => {
+		}));
+
+		console.log('Logseq Todos plugin loaded successfully');
+	}
+
+	onunload(): void {
+		console.log('Logseq Todos plugin unloading...');
+
+		if (this.refreshInterval) {
+			window.clearInterval(this.refreshInterval);
+			this.refreshInterval = null;
+		}
+
+		if (this.renderer) {
+			this.renderer.unregister();
+			this.renderer = null;
+		}
+
+		this.todoView = null;
+		console.log('Logseq Todos plugin unloaded');
+	}
+
+	async loadSettings(): Promise<void> {
+		try {
+			const loaded = await this.loadData();
+			if (loaded) {
+				this.settings = {
+					...DEFAULT_SETTINGS,
+					...loaded
+				};
+			}
+		} catch (error) {
+			console.error('Failed to load settings:', error);
+			this.settings = { ...DEFAULT_SETTINGS };
+		}
+	}
+
+	async saveSettings(): Promise<void> {
+		try {
+			await this.saveData(this.settings);
+			this.setupAutoRefresh();
+
+			if (this.todoView) {
+				await this.todoView.refresh();
+			}
+		} catch (error) {
+			console.error('Failed to save settings:', error);
+		}
+	}
+
+	private setupAutoRefresh(): void {
+		if (this.refreshInterval) {
+			window.clearInterval(this.refreshInterval);
+		}
+
+		if (this.settings.refreshInterval > 0) {
+			const intervalMs = this.settings.refreshInterval * 1000;
+			this.refreshInterval = window.setInterval(() => {
+				this.refreshTodos();
+			}, intervalMs);
+		}
+	}
+
+	async toggleView(): Promise<void> {
+		const { workspace } = this.app;
+		const leaves = workspace.getLeavesOfType(VIEW_TYPE_LOGSEQ_TODOS);
+
+		if (leaves.length > 0) {
+			workspace.detachLeavesOfType(VIEW_TYPE_LOGSEQ_TODOS);
+			return;
+		}
+
+		const side = this.settings.sidebarPosition === 'left' ? 'left' : 'right';
+		const newLeaf = side === 'left'
+			? workspace.getLeftLeaf(false)
+			: workspace.getRightLeaf(false);
+
+		if (newLeaf) {
+			await newLeaf.setViewState({
+				type: VIEW_TYPE_LOGSEQ_TODOS,
+				active: true
+			});
+
+			if (this.todoView) {
+				await this.todoView.loadTodos();
+			}
+		}
+	}
+
+	async refreshTodos(): Promise<void> {
+		if (this.todoView) {
+			await this.todoView.refresh();
+		}
+	}
+}
+
+export default LogseqTodosPlugin;

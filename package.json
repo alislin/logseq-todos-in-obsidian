@@ -1,0 +1,20 @@
+{
+  "name": "logseq-todos-in-obsidian",
+  "version": "1.0.0",
+  "description": "Display Logseq todos in Obsidian sidebar with full status support",
+  "main": "main.js",
+  "scripts": {
+    "build": "tsc -noEmit && node esbuild.config.mjs",
+    "dev": "tsc -noEmit && node esbuild.config.mjs --watch",
+    "clean": "rm -f main.js styles.css"
+  },
+  "keywords": ["obsidian", "plugin", "logseq", "todo"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@types/node": "^25.5.0",
+    "esbuild": "^0.27.4",
+    "obsidian": "^1.12.3",
+    "typescript": "^6.0.2"
+  }
+}
