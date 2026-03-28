@@ -137,6 +137,87 @@ class TagWidget extends WidgetType {
     }
 }
 
+interface ClockEntry {
+    start: string;
+    end: string;
+    duration: string;
+}
+
+interface DecorationInfo {
+    from: number;
+    to: number;
+    widget: WidgetType;
+}
+
+interface LogbookRange {
+    from: number;
+    to: number;
+}
+
+class ClockEntryWidget extends WidgetType {
+    private entry: ClockEntry;
+
+    constructor(entry: ClockEntry) {
+        super();
+        this.entry = entry;
+    }
+
+    toDOM(view: EditorView): HTMLElement {
+        const container = document.createElement('span');
+        container.className = 'logseq-logbook-entry';
+        
+        const startSpan = document.createElement('span');
+        startSpan.className = 'logseq-logbook-time';
+        startSpan.textContent = this.formatDateTime(this.entry.start);
+        
+        const arrowSpan = document.createElement('span');
+        arrowSpan.className = 'logseq-logbook-arrow';
+        arrowSpan.textContent = ' → ';
+        
+        const endSpan = document.createElement('span');
+        endSpan.className = 'logseq-logbook-time';
+        endSpan.textContent = this.formatDateTime(this.entry.end);
+        
+        const durationSpan = document.createElement('span');
+        durationSpan.className = 'logseq-logbook-duration';
+        durationSpan.textContent = ` (${this.entry.duration})`;
+        
+        container.appendChild(startSpan);
+        container.appendChild(arrowSpan);
+        container.appendChild(endSpan);
+        container.appendChild(durationSpan);
+        
+        return container;
+    }
+
+    private formatDateTime(dateTime: string): string {
+        const match = dateTime.match(/(\d{4})-(\d{2})-(\d{2})\s+\w+\s+(\d{2}:\d{2}:\d{2})/);
+        if (match) {
+            return `${match[2]}-${match[3]} ${match[4].slice(0, 5)}`;
+        }
+        return dateTime;
+    }
+
+    eq(other: ClockEntryWidget): boolean {
+        return this.entry.start === other.entry.start &&
+               this.entry.end === other.entry.end &&
+               this.entry.duration === other.entry.duration;
+    }
+}
+
+class HiddenWidget extends WidgetType {
+    toDOM(view: EditorView): HTMLElement {
+        const span = document.createElement('span');
+        span.className = 'logseq-logbook-hidden';
+        span.style.display = 'none';
+        return span;
+    }
+
+    eq(other: HiddenWidget): boolean {
+        return true;
+    }
+}
+
 function createDecorationsPlugin() {
     return class {
         decorations: DecorationSet;
@@ -165,111 +246,196 @@ function createDecorationsPlugin() {
                 return builder.finish();
             }
             
-            const statusRegex = /^(\s*)([-*+])\s+(NOW|DOING|LATER|TODO|DONE|CANCELLED)\s+/i;
-            const scheduledRegex = /SCHEDULED:\s*<([^>]+)>/gi;
-            const deadlineRegex = /DEADLINE:\s*<([^>]+)>/gi;
-            const priorityRegex = /#(P[0-2])\b/gi;
-            const blockRefRegex = /\(\(([a-f0-9-]+)\)\)/g;
-
             const doc = view.state.doc;
             const visibleRanges = view.visibleRanges || [{ from: 0, to: doc.length }];
+            
+            const allLines: string[] = [];
+            const allLineStarts: number[] = [];
             
             for (const { from, to } of visibleRanges) {
                 const text = doc.sliceString(from, to);
                 let currentPos = from;
                 
                 for (const line of text.split('\n')) {
-                    const lineStart = currentPos;
-                    const lineLength = line.length;
-                    
-                    const bulletMatch = line.match(statusRegex);
-                    if (bulletMatch) {
-                        const indent = bulletMatch[1].length;
-                        const status = bulletMatch[3].toUpperCase() as TodoStatus;
-                        
-                        const statusFrom = lineStart + indent + bulletMatch[2].length + 1;
-                        const statusTo = statusFrom + bulletMatch[3].length + 1;
-                        
-                        builder.add(
-                            statusFrom,
-                            statusTo,
-                            Decoration.replace({
-                                widget: new StatusWidget(status)
-                            })
-                        );
-                    }
-                    
-                    this.processMatches(builder, lineStart, line, scheduledRegex, (date: string) => 
-                        new ScheduledWidget(date)
-                    );
-                    
-                    this.processMatches(builder, lineStart, line, deadlineRegex, (date: string) => 
-                        new DeadlineWidget(date)
-                    );
-                    
-                    this.processMatches(builder, lineStart, line, priorityRegex, (priority: string) => 
-                        new PriorityWidget(priority)
-                    );
-                    
-                    this.processMatches(builder, lineStart, line, blockRefRegex, (uuid: string) => 
-                        new BlockRefWidget(uuid)
-                    );
-                    
-                    this.processTags(builder, lineStart, line);
-                    
-                    currentPos += lineLength + 1;
+                    allLines.push(line);
+                    allLineStarts.push(currentPos);
+                    currentPos += line.length + 1;
                 }
+            }
+            
+            const decorations: DecorationInfo[] = [];
+            const logbookRanges: LogbookRange[] = [];
+            
+            this.collectLogbookDecorations(decorations, logbookRanges, allLines, allLineStarts);
+            
+            for (let i = 0; i < allLines.length; i++) {
+                const line = allLines[i];
+                const lineStart = allLineStarts[i];
+                const lineEnd = lineStart + line.length;
+                
+                if (this.isInLogbookRange(lineStart, lineEnd, logbookRanges)) {
+                    continue;
+                }
+                
+                this.collectStatusDecorations(decorations, line, lineStart);
+                this.collectMatches(decorations, line, lineStart, /SCHEDULED:\s*<([^>]+)>/gi, (date: string) => new ScheduledWidget(date));
+                this.collectMatches(decorations, line, lineStart, /DEADLINE:\s*<([^>]+)>/gi, (date: string) => new DeadlineWidget(date));
+                this.collectMatches(decorations, line, lineStart, /#(P[0-2])\b/gi, (priority: string) => new PriorityWidget(priority));
+                this.collectMatches(decorations, line, lineStart, /\(\(([a-f0-9-]+)\)\)/g, (uuid: string) => new BlockRefWidget(uuid));
+                this.collectTagDecorations(decorations, line, lineStart);
+            }
+            
+            decorations.sort((a, b) => a.from - b.from);
+            
+            for (const dec of decorations) {
+                builder.add(dec.from, dec.to, Decoration.replace({ widget: dec.widget }));
             }
 
             return builder.finish();
         }
 
-        private processMatches(
-            builder: RangeSetBuilder<Decoration>,
+        private isInLogbookRange(from: number, to: number, ranges: LogbookRange[]): boolean {
+            for (const range of ranges) {
+                if (from >= range.from && to <= range.to) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private collectLogbookDecorations(
+            decorations: DecorationInfo[],
+            logbookRanges: LogbookRange[],
+            lines: string[],
+            lineStarts: number[]
+        ): void {
+            const logbookStartRegex = /^(\s*):LOGBOOK:/;
+            const logbookEndRegex = /^(\s*):END:/;
+            const clockRegex = /^(\s*)CLOCK:\s*\[([^\]]+)\]--\[([^\]]+)\]\s*=>\s*(\d+:\d+:\d+)/;
+            
+            let i = 0;
+            while (i < lines.length) {
+                const logbookMatch = lines[i].match(logbookStartRegex);
+                if (logbookMatch) {
+                    const indentLength = logbookMatch[1].length;
+                    const lineFrom = lineStarts[i] + indentLength;
+                    const lineTo = lineStarts[i] + lines[i].length;
+                    
+                    decorations.push({
+                        from: lineFrom,
+                        to: lineTo,
+                        widget: new HiddenWidget()
+                    });
+                    logbookRanges.push({ from: lineFrom, to: lineTo });
+                    i++;
+                    
+                    while (i < lines.length && !logbookEndRegex.test(lines[i])) {
+                        const clockMatch = lines[i].match(clockRegex);
+                        if (clockMatch) {
+                            const clockIndentLength = clockMatch[1].length;
+                            const entryLineFrom = lineStarts[i] + clockIndentLength;
+                            const entryLineTo = lineStarts[i] + lines[i].length;
+                            
+                            decorations.push({
+                                from: entryLineFrom,
+                                to: entryLineTo,
+                                widget: new ClockEntryWidget({
+                                    start: clockMatch[2],
+                                    end: clockMatch[3],
+                                    duration: clockMatch[4].trim()
+                                })
+                            });
+                            logbookRanges.push({ from: entryLineFrom, to: entryLineTo });
+                        }
+                        i++;
+                    }
+                    
+                    const endMatch = lines[i]?.match(logbookEndRegex);
+                    if (i < lines.length && endMatch) {
+                        const endIndentLength = endMatch[1].length;
+                        const endLineFrom = lineStarts[i] + endIndentLength;
+                        const endLineTo = lineStarts[i] + lines[i].length;
+                        
+                        decorations.push({
+                            from: endLineFrom,
+                            to: endLineTo,
+                            widget: new HiddenWidget()
+                        });
+                        logbookRanges.push({ from: endLineFrom, to: endLineTo });
+                        i++;
+                    }
+                } else {
+                    i++;
+                }
+            }
+        }
+
+        private collectStatusDecorations(
+            decorations: DecorationInfo[],
+            line: string,
+            lineStart: number
+        ): void {
+            const statusRegex = /^(\s*)([-*+])\s+(NOW|DOING|LATER|TODO|DONE|CANCELLED)\s+/i;
+            const bulletMatch = line.match(statusRegex);
+            
+            if (bulletMatch) {
+                const indent = bulletMatch[1].length;
+                const status = bulletMatch[3].toUpperCase() as TodoStatus;
+                
+                const statusFrom = lineStart + indent + bulletMatch[2].length + 1;
+                const statusTo = statusFrom + bulletMatch[3].length + 1;
+                
+                decorations.push({
+                    from: statusFrom,
+                    to: statusTo,
+                    widget: new StatusWidget(status)
+                });
+            }
+        }
+
+        private collectMatches(
+            decorations: DecorationInfo[],
+            line: string,
             lineStart: number,
-            text: string,
             regex: RegExp,
             createWidget: (match: string) => WidgetType
         ): void {
             const pattern = new RegExp(regex.source, 'gi');
             let match;
-            while ((match = pattern.exec(text)) !== null) {
+            
+            while ((match = pattern.exec(line)) !== null) {
                 const matchFrom = lineStart + match.index;
                 const matchTo = matchFrom + match[0].length;
                 
-                builder.add(
-                    matchFrom,
-                    matchTo,
-                    Decoration.replace({
-                        widget: createWidget(match[1])
-                    })
-                );
+                decorations.push({
+                    from: matchFrom,
+                    to: matchTo,
+                    widget: createWidget(match[1])
+                });
             }
         }
 
-        private processTags(
-            builder: RangeSetBuilder<Decoration>,
-            lineStart: number,
-            text: string
+        private collectTagDecorations(
+            decorations: DecorationInfo[],
+            line: string,
+            lineStart: number
         ): void {
             const tagRegex = /(?<![a-zA-Z0-9])#([a-zA-Z0-9_\u4e00-\u9fa5]+)/g;
             const pattern = new RegExp(tagRegex.source, 'g');
             let match;
             
-            while ((match = pattern.exec(text)) !== null) {
+            while ((match = pattern.exec(line)) !== null) {
                 const tag = match[1];
                 if (/^P[0-2]$/i.test(tag)) continue;
                 
                 const tagFrom = lineStart + match.index;
                 const tagTo = tagFrom + match[0].length;
                 
-                builder.add(
-                    tagFrom,
-                    tagTo,
-                    Decoration.replace({
-                        widget: new TagWidget(tag)
-                    })
-                );
+                decorations.push({
+                    from: tagFrom,
+                    to: tagTo,
+                    widget: new TagWidget(tag)
+                });
             }
         }
     };

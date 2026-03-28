@@ -284,5 +284,71 @@
 }
 
 .logseq-todos-ribbon:hover {
-	color: var(--text-normal);
-}
+ 	color: var(--text-normal);
+ }
+
+ .logseq-logbook {
+ 	display: none;
+ }
+
+ .logseq-logbook-container {
+ 	display: inline-flex;
+ 	flex-direction: column;
+ 	gap: 2px;
+ 	background: var(--background-secondary, rgba(0, 0, 0, 0.05));
+ 	border-radius: 4px;
+ 	padding: 4px 8px;
+ 	font-size: 0.85em;
+ 	margin: 2px 0;
+ }
+
+ .logseq-logbook-entry {
+ 	display: flex;
+ 	align-items: center;
+ 	gap: 4px;
+ 	color: var(--text-muted, #6b7280);
+ 	padding: 0 !important;
+ 	margin: 0 !important;
+ 	font-size: 0.85em;
+ 	white-space: nowrap;
+ }
+
+ .logseq-logbook-time {
+ 	font-size: 0.9em;
+ }
+
+ .logseq-logbook-arrow {
+ 	color: var(--text-faint, #9ca3af);
+ }
+
+ .logseq-logbook-duration {
+ 	font-weight: 600;
+ 	color: var(--text-accent, #8b5cf6);
+ }
+
+ .logseq-logbook-hidden {
+ 	display: none !important;
+ }
+
+ .HyperMD-list-line:has(.logseq-logbook-hidden) {
+ 	display: none !important;
+ 	height: 0 !important;
+ 	margin: 0 !important;
+ 	padding: 0 !important;
+ 	line-height: 0 !important;
+ 	visibility: hidden !important;
+ }
+
+ .HyperMD-list-line .logseq-logbook-entry {
+ 	display: inline-flex !important;
+ 	padding: 2px 8px !important;
+ 	margin: 0 !important;
+ 	background: var(--background-secondary) !important;
+ 	border-radius: 4px !important;
+ 	line-height: 1 !important;
+ 	vertical-align: baseline !important;
+ }
+
+ .HyperMD-list-line .cm-widgetBuffer {
+ 	height: 0 !important;
+ }

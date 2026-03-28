@@ -180,18 +180,58 @@ export class LogseqRenderer {
                 color: var(--text-faint, #9ca3af);
                 font-weight: 500;
             }
-            .logseq-logbook {
-                display: none;
+            .logseq-logbook-container {
+                display: inline-flex;
+                flex-direction: column;
+                gap: 2px;
+                background: var(--background-secondary, rgba(0, 0, 0, 0.05));
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 0.85em;
+                margin: 2px 0;
             }
-            .logseq-logbook-toggle {
-                cursor: pointer;
+            .logseq-logbook-entry {
+                display: flex;
+                align-items: center;
+                gap: 4px;
                 color: var(--text-muted, #6b7280);
-                font-size: 0.75em;
-                padding: 2px 4px;
-                border-radius: 3px;
+                padding: 0 !important;
+                margin: 0 !important;
+                font-size: 0.85em;
+                white-space: nowrap;
             }
-            .logseq-logbook-toggle:hover {
-                background-color: var(--background-modifier-hover, rgba(0, 0, 0, 0.05));
+            .logseq-logbook-hidden {
+                display: none !important;
+            }
+            .HyperMD-list-line:has(.logseq-logbook-hidden) {
+                display: none !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                line-height: 0 !important;
+                visibility: hidden !important;
+            }
+            .HyperMD-list-line .logseq-logbook-entry {
+                display: inline-flex !important;
+                padding: 2px 8px !important;
+                margin: 0 !important;
+                background: var(--background-secondary) !important;
+                border-radius: 4px !important;
+                line-height: 1 !important;
+                vertical-align: baseline !important;
+            }
+            .HyperMD-list-line .cm-widgetBuffer {
+                height: 0 !important;
+            }
+            .logseq-logbook-time {
+                font-size: 0.9em;
+            }
+            .logseq-logbook-arrow {
+                color: var(--text-faint, #9ca3af);
+            }
+            .logseq-logbook-duration {
+                font-weight: 600;
+                color: var(--text-accent, #8b5cf6);
             }
             .logseq-task-line {
                 position: relative;
@@ -533,15 +573,69 @@ export class LogseqRenderer {
         logbookBlocks.forEach((block) => {
             const text = block.textContent || '';
             if (text.includes(':LOGBOOK:') && text.includes(':END:')) {
-                const logbookPattern = /:LOGBOOK:[\s\S]*?:END:/g;
                 const html = block.innerHTML;
-                const newHtml = html.replace(logbookPattern, (match) => {
-                    return `<span class="logseq-logbook">${match}</span>`;
-                });
-                if (newHtml !== html) {
-                    block.innerHTML = newHtml;
+                const clockRegex = /CLOCK:\s*\[([^\]]+)\]--\[([^\]]+)\]\s*=>\s*(\d+:\d+:\d+)/g;
+                const entries: { start: string; end: string; duration: string }[] = [];
+                
+                let clockMatch;
+                while ((clockMatch = clockRegex.exec(text)) !== null) {
+                    entries.push({
+                        start: clockMatch[1],
+                        end: clockMatch[2],
+                        duration: clockMatch[3].trim()
+                    });
+                }
+                
+                if (entries.length > 0) {
+                    const logbookPattern = /:LOGBOOK:[\s\S]*?:END:/g;
+                    const newHtml = html.replace(logbookPattern, () => {
+                        const container = document.createElement('span');
+                        container.className = 'logseq-logbook-container';
+                        
+                        for (const entry of entries) {
+                            const entrySpan = document.createElement('span');
+                            entrySpan.className = 'logseq-logbook-entry';
+                            
+                            const startSpan = document.createElement('span');
+                            startSpan.className = 'logseq-logbook-time';
+                            startSpan.textContent = this.formatDateTime(entry.start);
+                            
+                            const arrowSpan = document.createElement('span');
+                            arrowSpan.className = 'logseq-logbook-arrow';
+                            arrowSpan.textContent = ' → ';
+                            
+                            const endSpan = document.createElement('span');
+                            endSpan.className = 'logseq-logbook-time';
+                            endSpan.textContent = this.formatDateTime(entry.end);
+                            
+                            const durationSpan = document.createElement('span');
+                            durationSpan.className = 'logseq-logbook-duration';
+                            durationSpan.textContent = ` (${entry.duration})`;
+                            
+                            entrySpan.appendChild(startSpan);
+                            entrySpan.appendChild(arrowSpan);
+                            entrySpan.appendChild(endSpan);
+                            entrySpan.appendChild(durationSpan);
+                            
+                            container.appendChild(entrySpan);
+                        }
+                        
+                        return container.outerHTML;
+                    });
+                    
+                    if (newHtml !== html) {
+                        block.innerHTML = newHtml;
+                    }
                 }
             }
         });
+    }
+
+    private formatDateTime(dateTime: string): string {
+        const match = dateTime.match(/(\d{4})-(\d{2})-(\d{2})\s+\w+\s+(\d{2}:\d{2}:\d{2})/);
+        if (match) {
+            return `${match[2]}-${match[3]} ${match[4].slice(0, 5)}`;
+        }
+        return dateTime;
     }
 }
