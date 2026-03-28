@@ -52,6 +52,17 @@
 
 ## 安装
 
+### 通过 BRAT 安装
+
+[BRAT](https://github.com/TfTHacker/obsidian42-brat) 是一个用于安装测试版 Obsidian 插件的工具。
+
+1. 在 Obsidian 社区插件市场中搜索并安装 **BRAT** 插件
+2. 在 Obsidian 设置中打开 **BRAT** 设置面板
+3. 点击 **Add Beta plugin** 按钮
+4. 输入仓库地址：`https://github.com/alislin/logseq-todos-in-obsidian`
+5. 点击 **Add Plugin** 完成安装
+6. 在社区插件列表中启用 **Logseq Todos**
+
 ### 手动安装
 
 1. 下载 `main.js`、`styles.css`、`manifest.json` 文件
