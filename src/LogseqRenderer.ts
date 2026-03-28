@@ -1,17 +1,21 @@
-import { MarkdownPostProcessor, Plugin, MarkdownPostProcessorContext } from 'obsidian';
+import { MarkdownPostProcessor, Plugin, MarkdownPostProcessorContext, TFile } from 'obsidian';
 import { STATUS_ICONS, TodoStatus, LogseqSettings } from './TodoItem';
-import { createLogseqEditorExtensions, setCurrentSettings } from './EditorExtension';
+import { createLogseqEditorExtensions, setCurrentSettings, setCurrentBlockIndex } from './EditorExtension';
 import { isPathInLogseqDirs } from './PathUtils';
+import { BlockIndexManager } from './BlockIndex';
 
 export class LogseqRenderer {
     private plugin: Plugin;
     private getSettings: () => LogseqSettings;
+    private blockIndex: BlockIndexManager | null;
     private postProcessors: MarkdownPostProcessor[] = [];
     private editorExtensions: any[] = [];
+    private previewPopover: HTMLElement | null = null;
 
-    constructor(plugin: Plugin, getSettings: () => LogseqSettings) {
+    constructor(plugin: Plugin, getSettings: () => LogseqSettings, blockIndex: BlockIndexManager | null) {
         this.plugin = plugin;
         this.getSettings = getSettings;
+        this.blockIndex = blockIndex;
     }
 
     register(): void {
@@ -29,6 +33,9 @@ export class LogseqRenderer {
     updateEditorExtension(): void {
         const settings = this.getSettings();
         setCurrentSettings(settings);
+        if (this.blockIndex) {
+            setCurrentBlockIndex(this.blockIndex);
+        }
         this.editorExtensions = createLogseqEditorExtensions(settings);
         this.plugin.registerEditorExtension(this.editorExtensions);
     }
@@ -332,12 +339,37 @@ export class LogseqRenderer {
                 const uuid = match[1];
                 const span = document.createElement('span');
                 span.className = 'logseq-block-ref';
-                span.textContent = uuid.slice(0, 6);
-                span.title = `Block: ${uuid}`;
                 span.dataset.uuid = uuid;
-                span.addEventListener('click', () => {
-                    console.log('Navigate to block:', uuid);
+                
+                if (this.blockIndex) {
+                    const location = this.blockIndex.getLocation(uuid);
+                    if (location && location.firstLine) {
+                        span.textContent = location.firstLine.length > 50
+                            ? location.firstLine.slice(0, 50) + '...'
+                            : location.firstLine;
+                    } else {
+                        span.textContent = uuid.slice(0, 6);
+                    }
+                } else {
+                    span.textContent = uuid.slice(0, 6);
+                }
+                
+                span.title = '点击跳转到块';
+                
+                span.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.jumpToBlock(uuid);
                 });
+                
+                span.addEventListener('mouseenter', (e) => {
+                    this.showPreview(e, uuid);
+                });
+                
+                span.addEventListener('mouseleave', () => {
+                    this.hidePreview();
+                });
+                
                 parts.push(span);
                 lastIndex = match.index + match[0].length;
             }
@@ -360,6 +392,87 @@ export class LogseqRenderer {
                     parent.replaceChild(fragment, textNode);
                 }
             }
+        }
+    }
+
+    private async jumpToBlock(uuid: string): Promise<void> {
+        if (!this.blockIndex) return;
+        
+        const location = this.blockIndex.getLocation(uuid);
+        if (!location) {
+            console.log('Block not found:', uuid);
+            return;
+        }
+        
+        try {
+            const file = this.plugin.app.vault.getAbstractFileByPath(location.filePath);
+            if (!(file instanceof TFile)) return;
+            
+            const leaf = this.plugin.app.workspace.getLeaf('tab');
+            await leaf.openFile(file);
+            
+            const view = leaf.view as any;
+            if (view && view.editor) {
+                const targetLine = Math.max(0, location.lineNumber - 1);
+                view.editor.setCursor({ line: targetLine, ch: 0 });
+            }
+        } catch (err) {
+            console.error('Failed to jump to block:', err);
+        }
+    }
+
+    private showPreview(e: MouseEvent, uuid: string): void {
+        this.hidePreview();
+        
+        const preview = document.createElement('div');
+        preview.className = 'logseq-block-preview';
+        
+        const rect = (e.target as HTMLElement).getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        let left = rect.left;
+        let top = rect.bottom + 5;
+        
+        if (left + 420 > viewportWidth) {
+            left = viewportWidth - 420;
+        }
+        if (top + 220 > viewportHeight) {
+            top = rect.top - 220;
+        }
+        
+        preview.style.left = `${Math.max(10, left)}px`;
+        preview.style.top = `${Math.max(10, top)}px`;
+        preview.style.position = 'fixed';
+        preview.style.zIndex = '1000';
+        
+        preview.textContent = '加载中...';
+        document.body.appendChild(preview);
+        this.previewPopover = preview;
+        
+        if (this.blockIndex) {
+            this.blockIndex.getFullContent(uuid).then((lines) => {
+                if (this.previewPopover && lines.length > 0) {
+                    this.previewPopover.innerHTML = lines
+                        .slice(0, 10)
+                        .map(l => `<div>${l}</div>`)
+                        .join('');
+                } else if (this.previewPopover) {
+                    const location = this.blockIndex?.getLocation(uuid);
+                    if (location && location.firstLine) {
+                        this.previewPopover.textContent = location.firstLine;
+                    } else {
+                        this.previewPopover.textContent = '未找到块内容';
+                    }
+                }
+            });
+        }
+    }
+
+    private hidePreview(): void {
+        if (this.previewPopover) {
+            this.previewPopover.remove();
+            this.previewPopover = null;
         }
     }
 

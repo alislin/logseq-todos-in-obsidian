@@ -1,10 +1,13 @@
 import { ViewPlugin, Decoration, EditorView, WidgetType, DecorationSet, ViewUpdate } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
+import { TFile } from 'obsidian';
 import { STATUS_ICONS, TodoStatus, LogseqSettings } from './TodoItem';
 import { isPathInLogseqDirs } from './PathUtils';
+import { BlockIndexManager } from './BlockIndex';
 
 let currentFilePath: string = '';
 let currentSettings: LogseqSettings | null = null;
+let currentBlockIndex: BlockIndexManager | null = null;
 
 export function setCurrentFilePath(path: string): void {
     currentFilePath = path;
@@ -12,6 +15,10 @@ export function setCurrentFilePath(path: string): void {
 
 export function setCurrentSettings(settings: LogseqSettings): void {
     currentSettings = settings;
+}
+
+export function setCurrentBlockIndex(index: BlockIndexManager | null): void {
+    currentBlockIndex = index;
 }
 
 class StatusWidget extends WidgetType {
@@ -78,6 +85,7 @@ class DeadlineWidget extends WidgetType {
 
 class BlockRefWidget extends WidgetType {
     private uuid: string;
+    private previewEl: HTMLElement | null = null;
 
     constructor(uuid: string) {
         super();
@@ -87,9 +95,123 @@ class BlockRefWidget extends WidgetType {
     toDOM(view: EditorView): HTMLElement {
         const span = document.createElement('span');
         span.className = 'logseq-block-ref';
-        span.textContent = this.uuid.slice(0, 6);
-        span.title = `Block: ${this.uuid}`;
+        span.dataset.uuid = this.uuid;
+        
+        if (currentBlockIndex) {
+            const location = currentBlockIndex.getLocation(this.uuid);
+            if (location && location.firstLine) {
+                span.textContent = location.firstLine.length > 50 
+                    ? location.firstLine.slice(0, 50) + '...' 
+                    : location.firstLine;
+            } else {
+                span.textContent = this.uuid.slice(0, 6);
+            }
+        } else {
+            span.textContent = this.uuid.slice(0, 6);
+        }
+        
+        span.title = '点击跳转到块';
+        
+        span.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.jumpToBlock(view);
+        });
+        
+        span.addEventListener('mouseenter', (e) => {
+            this.showPreview(e, view);
+        });
+        
+        span.addEventListener('mouseleave', () => {
+            this.hidePreview();
+        });
+        
         return span;
+    }
+
+    private async jumpToBlock(view: EditorView): Promise<void> {
+        if (!currentBlockIndex) return;
+        
+        const location = currentBlockIndex.getLocation(this.uuid);
+        if (!location) {
+            console.log('Block not found:', this.uuid);
+            return;
+        }
+        
+        try {
+            const app = (view as any).plugin?.app;
+            if (!app) return;
+            
+            const file = app.vault.getAbstractFileByPath(location.filePath);
+            if (!(file instanceof TFile)) return;
+            
+            const leaf = app.workspace.getLeaf('tab');
+            await leaf.openFile(file);
+            
+            const editor = leaf.view?.editor;
+            if (editor) {
+                const targetLine = Math.max(0, location.lineNumber - 1);
+                editor.setCursor({ line: targetLine, ch: 0 });
+                editor.scrollIntoView({ from: { line: targetLine, ch: 0 }, to: { line: targetLine + 5, ch: 0 } });
+            }
+        } catch (err) {
+            console.error('Failed to jump to block:', err);
+        }
+    }
+
+    private showPreview(e: MouseEvent, view: EditorView): void {
+        this.hidePreview();
+        
+        const preview = document.createElement('div');
+        preview.className = 'logseq-block-preview';
+        
+        const rect = (e.target as HTMLElement).getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        let left = rect.left;
+        let top = rect.bottom + 5;
+        
+        if (left + 420 > viewportWidth) {
+            left = viewportWidth - 420;
+        }
+        if (top + 220 > viewportHeight) {
+            top = rect.top - 220;
+        }
+        
+        preview.style.left = `${Math.max(10, left)}px`;
+        preview.style.top = `${Math.max(10, top)}px`;
+        preview.style.position = 'fixed';
+        preview.style.zIndex = '1000';
+        
+        preview.textContent = '加载中...';
+        document.body.appendChild(preview);
+        this.previewEl = preview;
+        
+        if (currentBlockIndex) {
+            currentBlockIndex.getFullContent(this.uuid).then((lines) => {
+                if (this.previewEl && lines.length > 0) {
+                    this.previewEl.innerHTML = lines
+                        .slice(0, 10)
+                        .map(l => `<div>${l}</div>`)
+                        .join('');
+                } else if (this.previewEl) {
+                    const location = currentBlockIndex?.getLocation(this.uuid);
+                    if (location && location.firstLine) {
+                        this.previewEl.textContent = location.firstLine;
+                    } else {
+                        this.previewEl.textContent = '未找到块内容';
+                    }
+                }
+            });
+        }
+    }
+
+    private hidePreview(): void {
+        if (this.previewEl) {
+            this.previewEl.remove();
+            this.previewEl = null;
+        }
     }
 
     eq(other: BlockRefWidget): boolean {

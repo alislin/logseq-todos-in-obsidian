@@ -3,12 +3,14 @@ import { LogseqSettings, DEFAULT_SETTINGS } from './TodoItem';
 import { TodoView, VIEW_TYPE_LOGSEQ_TODOS } from './TodoView';
 import { LogseqRenderer } from './LogseqRenderer';
 import { SettingsTab } from './SettingsTab';
-import { setCurrentFilePath } from './EditorExtension';
+import { setCurrentFilePath, setCurrentBlockIndex } from './EditorExtension';
+import { BlockIndexManager } from './BlockIndex';
 
 export class LogseqTodosPlugin extends Plugin {
 	public settings: LogseqSettings;
 	private todoView: TodoView | null = null;
 	private renderer: LogseqRenderer | null = null;
+	private blockIndex: BlockIndexManager | null = null;
 	private refreshInterval: ReturnType<typeof setInterval> | null = null;
 
 	constructor(app: App, manifest: PluginManifest) {
@@ -21,7 +23,31 @@ export class LogseqTodosPlugin extends Plugin {
 
 		await this.loadSettings();
 
-		this.renderer = new LogseqRenderer(this, () => this.settings);
+		this.blockIndex = new BlockIndexManager(this.app, () => this.settings);
+		this.blockIndex.buildIndex().then(() => {
+			console.log('Block index built:', this.blockIndex?.getIndexSize(), 'blocks');
+			setCurrentBlockIndex(this.blockIndex);
+		});
+
+		this.registerEvent(this.app.vault.on('create', (file) => {
+			if (file instanceof TFile && file.extension === 'md') {
+				this.blockIndex?.updateForFile(file);
+			}
+		}));
+
+		this.registerEvent(this.app.vault.on('modify', (file) => {
+			if (file instanceof TFile && file.extension === 'md') {
+				this.blockIndex?.updateForFile(file);
+			}
+		}));
+
+		this.registerEvent(this.app.vault.on('delete', (file) => {
+			if (file instanceof TFile && file.extension === 'md') {
+				this.blockIndex?.updateForFile(file);
+			}
+		}));
+
+		this.renderer = new LogseqRenderer(this, () => this.settings, this.blockIndex);
 		this.renderer.register();
 
 		this.addRibbonIcon('list-todo', 'Logseq Todos', async () => {
@@ -81,6 +107,7 @@ export class LogseqTodosPlugin extends Plugin {
 		}
 
 		this.todoView = null;
+		this.blockIndex = null;
 		console.log('Logseq Todos plugin unloaded');
 	}
 
@@ -88,7 +115,6 @@ export class LogseqTodosPlugin extends Plugin {
 		try {
 			const loaded = await this.loadData();
 			if (loaded) {
-				// 兼容旧版单路径设置
 				if ((loaded as any).logseqPath && !loaded.logseqPaths) {
 					this.settings = {
 						...DEFAULT_SETTINGS,
@@ -119,6 +145,10 @@ export class LogseqTodosPlugin extends Plugin {
 
 			if (this.renderer) {
 				this.renderer.updateEditorExtension();
+			}
+
+			if (this.blockIndex) {
+				await this.blockIndex.buildIndex();
 			}
 		} catch (error) {
 			console.error('Failed to save settings:', error);
