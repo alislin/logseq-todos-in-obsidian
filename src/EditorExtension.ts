@@ -218,6 +218,36 @@ class HiddenWidget extends WidgetType {
     }
 }
 
+class PropertyWidget extends WidgetType {
+    private name: string;
+    private value: string;
+
+    constructor(name: string, value: string) {
+        super();
+        this.name = name;
+        this.value = value;
+    }
+
+    toDOM(view: EditorView): HTMLElement {
+        const span = document.createElement('span');
+        span.className = 'logseq-property';
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'logseq-property-name';
+        nameSpan.textContent = `${this.name}:`;
+        
+        span.appendChild(nameSpan);
+        span.appendChild(document.createTextNode(' '));
+        span.appendChild(document.createTextNode(this.value));
+        
+        return span;
+    }
+
+    eq(other: PropertyWidget): boolean {
+        return this.name === other.name && this.value === other.value;
+    }
+}
+
 function createDecorationsPlugin() {
     return class {
         decorations: DecorationSet;
@@ -283,6 +313,7 @@ function createDecorationsPlugin() {
                 this.collectMatches(decorations, line, lineStart, /#(P[0-2])\b/gi, (priority: string) => new PriorityWidget(priority));
                 this.collectMatches(decorations, line, lineStart, /\(\(([a-f0-9-]+)\)\)/g, (uuid: string) => new BlockRefWidget(uuid));
                 this.collectTagDecorations(decorations, line, lineStart);
+                this.collectPropertyDecorations(decorations, line, lineStart);
             }
             
             decorations.sort((a, b) => a.from - b.from);
@@ -435,6 +466,27 @@ function createDecorationsPlugin() {
                     from: tagFrom,
                     to: tagTo,
                     widget: new TagWidget(tag)
+                });
+            }
+        }
+
+        private collectPropertyDecorations(
+            decorations: DecorationInfo[],
+            line: string,
+            lineStart: number
+        ): void {
+            const propertyRegex = /^(\s*)(id)::\s*(.+)$/i;
+            const match = line.match(propertyRegex);
+            
+            if (match) {
+                const indentLength = match[1].length;
+                const propertyFrom = lineStart + indentLength;
+                const propertyTo = lineStart + line.length;
+                
+                decorations.push({
+                    from: propertyFrom,
+                    to: propertyTo,
+                    widget: new PropertyWidget(match[2], match[3])
                 });
             }
         }
