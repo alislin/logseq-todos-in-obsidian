@@ -1,6 +1,18 @@
 import { ViewPlugin, Decoration, EditorView, WidgetType, DecorationSet, ViewUpdate } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
-import { STATUS_ICONS, TodoStatus } from './TodoItem';
+import { STATUS_ICONS, TodoStatus, LogseqSettings } from './TodoItem';
+import { isPathInLogseqDirs } from './PathUtils';
+
+let currentFilePath: string = '';
+let currentSettings: LogseqSettings | null = null;
+
+export function setCurrentFilePath(path: string): void {
+    currentFilePath = path;
+}
+
+export function setCurrentSettings(settings: LogseqSettings): void {
+    currentSettings = settings;
+}
 
 class StatusWidget extends WidgetType {
     private status: TodoStatus;
@@ -125,136 +137,151 @@ class TagWidget extends WidgetType {
     }
 }
 
-class LogseqDecorationsPlugin {
-    decorations: DecorationSet;
+function createDecorationsPlugin() {
+    return class {
+        decorations: DecorationSet;
 
-    constructor(view: EditorView) {
-        this.decorations = this.buildDecorations(view);
-    }
-
-    update(update: ViewUpdate): void {
-        if (update.docChanged || update.viewportChanged) {
-            this.decorations = this.buildDecorations(update.view);
+        constructor(view: EditorView) {
+            this.decorations = this.buildDecorations(view);
         }
-    }
 
-    destroy(): void {}
-
-    private buildDecorations(view: EditorView): DecorationSet {
-        const builder = new RangeSetBuilder<Decoration>();
-        
-        const statusRegex = /^(NOW|DOING|LATER|TODO|DONE|CANCELLED)\s+/i;
-        const scheduledRegex = /SCHEDULED:\s*<([^>]+)>/gi;
-        const deadlineRegex = /DEADLINE:\s*<([^>]+)>/gi;
-        const priorityRegex = /#(P[0-2])\b/gi;
-        const blockRefRegex = /\(\(([a-f0-9-]+)\)\)/g;
-
-        const doc = view.state.doc;
-        const visibleRanges = view.visibleRanges || [{ from: 0, to: doc.length }];
-        
-        for (const { from, to } of visibleRanges) {
-            const text = doc.sliceString(from, to);
-            let currentPos = from;
-            
-            for (const line of text.split('\n')) {
-                const lineStart = currentPos;
-                const lineLength = line.length;
-                
-                const bulletMatch = line.match(/^(\s*)([-*+])\s+(NOW|DOING|LATER|TODO|DONE|CANCELLED)\s+/i);
-                if (bulletMatch) {
-                    const indent = bulletMatch[1].length;
-                    const bullet = bulletMatch[2];
-                    const status = bulletMatch[3].toUpperCase() as TodoStatus;
-                    
-                    const statusFrom = lineStart + indent + bullet.length + 1;
-                    const statusTo = statusFrom + bulletMatch[3].length + 1;
-                    
-                    builder.add(
-                        statusFrom,
-                        statusTo,
-                        Decoration.replace({
-                            widget: new StatusWidget(status)
-                        })
-                    );
-                }
-                
-                this.processMatches(builder, lineStart, line, scheduledRegex, (date: string) => 
-                    new ScheduledWidget(date)
-                );
-                
-                this.processMatches(builder, lineStart, line, deadlineRegex, (date: string) => 
-                    new DeadlineWidget(date)
-                );
-                
-                this.processMatches(builder, lineStart, line, priorityRegex, (priority: string) => 
-                    new PriorityWidget(priority)
-                );
-                
-                this.processMatches(builder, lineStart, line, blockRefRegex, (uuid: string) => 
-                    new BlockRefWidget(uuid)
-                );
-                
-                this.processTags(builder, lineStart, line);
-                
-                currentPos += lineLength + 1;
+        update(update: ViewUpdate): void {
+            if (update.docChanged || update.viewportChanged) {
+                this.decorations = this.buildDecorations(update.view);
             }
         }
 
-        return builder.finish();
-    }
+        destroy(): void {}
 
-    private processMatches(
-        builder: RangeSetBuilder<Decoration>,
-        lineStart: number,
-        text: string,
-        regex: RegExp,
-        createWidget: (match: string) => WidgetType
-    ): void {
-        const pattern = new RegExp(regex.source, 'gi');
-        let match;
-        while ((match = pattern.exec(text)) !== null) {
-            const matchFrom = lineStart + match.index;
-            const matchTo = matchFrom + match[0].length;
+        private buildDecorations(view: EditorView): DecorationSet {
+            const builder = new RangeSetBuilder<Decoration>();
             
-            builder.add(
-                matchFrom,
-                matchTo,
-                Decoration.replace({
-                    widget: createWidget(match[1])
-                })
-            );
-        }
-    }
+            const settings = currentSettings;
+            if (!settings) {
+                return builder.finish();
+            }
+            
+            if (!isPathInLogseqDirs(currentFilePath, settings.logseqPaths)) {
+                return builder.finish();
+            }
+            
+            const statusRegex = /^(\s*)([-*+])\s+(NOW|DOING|LATER|TODO|DONE|CANCELLED)\s+/i;
+            const scheduledRegex = /SCHEDULED:\s*<([^>]+)>/gi;
+            const deadlineRegex = /DEADLINE:\s*<([^>]+)>/gi;
+            const priorityRegex = /#(P[0-2])\b/gi;
+            const blockRefRegex = /\(\(([a-f0-9-]+)\)\)/g;
 
-    private processTags(
-        builder: RangeSetBuilder<Decoration>,
-        lineStart: number,
-        text: string
-    ): void {
-        const tagRegex = /(?<![a-zA-Z0-9])#([a-zA-Z0-9_\u4e00-\u9fa5]+)/g;
-        const pattern = new RegExp(tagRegex.source, 'g');
-        let match;
-        
-        while ((match = pattern.exec(text)) !== null) {
-            const tag = match[1];
-            if (/^P[0-2]$/i.test(tag)) continue;
+            const doc = view.state.doc;
+            const visibleRanges = view.visibleRanges || [{ from: 0, to: doc.length }];
             
-            const tagFrom = lineStart + match.index;
-            const tagTo = tagFrom + match[0].length;
-            
-            builder.add(
-                tagFrom,
-                tagTo,
-                Decoration.replace({
-                    widget: new TagWidget(tag)
-                })
-            );
+            for (const { from, to } of visibleRanges) {
+                const text = doc.sliceString(from, to);
+                let currentPos = from;
+                
+                for (const line of text.split('\n')) {
+                    const lineStart = currentPos;
+                    const lineLength = line.length;
+                    
+                    const bulletMatch = line.match(statusRegex);
+                    if (bulletMatch) {
+                        const indent = bulletMatch[1].length;
+                        const status = bulletMatch[3].toUpperCase() as TodoStatus;
+                        
+                        const statusFrom = lineStart + indent + bulletMatch[2].length + 1;
+                        const statusTo = statusFrom + bulletMatch[3].length + 1;
+                        
+                        builder.add(
+                            statusFrom,
+                            statusTo,
+                            Decoration.replace({
+                                widget: new StatusWidget(status)
+                            })
+                        );
+                    }
+                    
+                    this.processMatches(builder, lineStart, line, scheduledRegex, (date: string) => 
+                        new ScheduledWidget(date)
+                    );
+                    
+                    this.processMatches(builder, lineStart, line, deadlineRegex, (date: string) => 
+                        new DeadlineWidget(date)
+                    );
+                    
+                    this.processMatches(builder, lineStart, line, priorityRegex, (priority: string) => 
+                        new PriorityWidget(priority)
+                    );
+                    
+                    this.processMatches(builder, lineStart, line, blockRefRegex, (uuid: string) => 
+                        new BlockRefWidget(uuid)
+                    );
+                    
+                    this.processTags(builder, lineStart, line);
+                    
+                    currentPos += lineLength + 1;
+                }
+            }
+
+            return builder.finish();
         }
-    }
+
+        private processMatches(
+            builder: RangeSetBuilder<Decoration>,
+            lineStart: number,
+            text: string,
+            regex: RegExp,
+            createWidget: (match: string) => WidgetType
+        ): void {
+            const pattern = new RegExp(regex.source, 'gi');
+            let match;
+            while ((match = pattern.exec(text)) !== null) {
+                const matchFrom = lineStart + match.index;
+                const matchTo = matchFrom + match[0].length;
+                
+                builder.add(
+                    matchFrom,
+                    matchTo,
+                    Decoration.replace({
+                        widget: createWidget(match[1])
+                    })
+                );
+            }
+        }
+
+        private processTags(
+            builder: RangeSetBuilder<Decoration>,
+            lineStart: number,
+            text: string
+        ): void {
+            const tagRegex = /(?<![a-zA-Z0-9])#([a-zA-Z0-9_\u4e00-\u9fa5]+)/g;
+            const pattern = new RegExp(tagRegex.source, 'g');
+            let match;
+            
+            while ((match = pattern.exec(text)) !== null) {
+                const tag = match[1];
+                if (/^P[0-2]$/i.test(tag)) continue;
+                
+                const tagFrom = lineStart + match.index;
+                const tagTo = tagFrom + match[0].length;
+                
+                builder.add(
+                    tagFrom,
+                    tagTo,
+                    Decoration.replace({
+                        widget: new TagWidget(tag)
+                    })
+                );
+            }
+        }
+    };
 }
 
-export const logseqEditorPlugin = ViewPlugin.fromClass(LogseqDecorationsPlugin, {
-    decorations: (v: LogseqDecorationsPlugin) => v.decorations
-});
+export function createLogseqEditorPlugin(settings: LogseqSettings) {
+    setCurrentSettings(settings);
+    return ViewPlugin.fromClass(createDecorationsPlugin(), {
+        decorations: (v: any) => v.decorations
+    });
+}
 
-export const logseqEditorExtensions = [logseqEditorPlugin];
+export function createLogseqEditorExtensions(settings: LogseqSettings) {
+    return [createLogseqEditorPlugin(settings)];
+}

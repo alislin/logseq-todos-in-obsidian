@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import { LogseqTodosPlugin } from './main';
 import { TodoStatus, STATUS_ICONS, DEFAULT_SETTINGS } from './TodoItem';
+import { parseMultiplePaths } from './PathUtils';
 
 export class SettingsTab extends PluginSettingTab {
 	private plugin: LogseqTodosPlugin;
@@ -26,13 +27,16 @@ export class SettingsTab extends PluginSettingTab {
 		containerEl.createEl('h3', { text: 'Path Settings' });
 
 		new Setting(containerEl)
-			.setName('Logseq Root Path')
-			.setDesc('The root directory containing your Logseq data')
-			.addText(text => text
-				.setPlaceholder('工作日志')
-				.setValue(this.plugin.settings.logseqPath)
+			.setName('Logseq Paths')
+			.setDesc('One path per line. Only files in these directories will be rendered with Logseq format.')
+			.addTextArea(text => text
+				.setPlaceholder('工作日志\nnotes/logseq')
+				.setValue(this.plugin.settings.logseqPaths.join('\n'))
 				.onChange(async (value) => {
-					this.plugin.settings.logseqPath = value || DEFAULT_SETTINGS.logseqPath;
+					this.plugin.settings.logseqPaths = parseMultiplePaths(value);
+					if (this.plugin.settings.logseqPaths.length === 0) {
+						this.plugin.settings.logseqPaths = DEFAULT_SETTINGS.logseqPaths;
+					}
 					await this.plugin.saveSettings();
 				}));
 

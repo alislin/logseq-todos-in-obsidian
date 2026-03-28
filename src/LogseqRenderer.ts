@@ -1,18 +1,22 @@
-import { MarkdownPostProcessor, Plugin } from 'obsidian';
-import { STATUS_ICONS, STATUS_COLORS, TodoStatus } from './TodoItem';
-import { logseqEditorExtensions } from './EditorExtension';
+import { MarkdownPostProcessor, Plugin, MarkdownPostProcessorContext } from 'obsidian';
+import { STATUS_ICONS, TodoStatus, LogseqSettings } from './TodoItem';
+import { createLogseqEditorExtensions, setCurrentSettings } from './EditorExtension';
+import { isPathInLogseqDirs } from './PathUtils';
 
 export class LogseqRenderer {
     private plugin: Plugin;
+    private getSettings: () => LogseqSettings;
     private postProcessors: MarkdownPostProcessor[] = [];
+    private editorExtensions: any[] = [];
 
-    constructor(plugin: Plugin) {
+    constructor(plugin: Plugin, getSettings: () => LogseqSettings) {
         this.plugin = plugin;
+        this.getSettings = getSettings;
     }
 
     register(): void {
         this.registerTaskStatusStyles();
-        this.plugin.registerEditorExtension(logseqEditorExtensions);
+        this.updateEditorExtension();
         this.registerTaskStatusProcessor();
         this.registerBlockRefPostProcessor();
         this.registerScheduledPostProcessor();
@@ -22,12 +26,24 @@ export class LogseqRenderer {
         this.registerLogbookProcessor();
     }
 
+    updateEditorExtension(): void {
+        const settings = this.getSettings();
+        setCurrentSettings(settings);
+        this.editorExtensions = createLogseqEditorExtensions(settings);
+        this.plugin.registerEditorExtension(this.editorExtensions);
+    }
+
     unregister(): void {
         this.postProcessors = [];
+        this.editorExtensions = [];
         const styleEl = document.getElementById('logseq-todos-styles');
         if (styleEl) {
             styleEl.remove();
         }
+    }
+
+    private shouldProcessFile(ctx: MarkdownPostProcessorContext): boolean {
+        return isPathInLogseqDirs(ctx.sourcePath, this.getSettings().logseqPaths);
     }
 
     private registerTaskStatusStyles(): void {
@@ -187,7 +203,8 @@ export class LogseqRenderer {
     }
 
     private registerTaskStatusProcessor(): void {
-        const processor: MarkdownPostProcessor = (el: HTMLElement) => {
+        const processor: MarkdownPostProcessor = (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+            if (!this.shouldProcessFile(ctx)) return;
             this.processTaskStatus(el);
         };
 
@@ -235,7 +252,8 @@ export class LogseqRenderer {
     }
 
     private registerBlockRefPostProcessor(): void {
-        const processor: MarkdownPostProcessor = (el: HTMLElement) => {
+        const processor: MarkdownPostProcessor = (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+            if (!this.shouldProcessFile(ctx)) return;
             this.processBlockRefs(el);
         };
 
@@ -306,7 +324,8 @@ export class LogseqRenderer {
     }
 
     private registerScheduledPostProcessor(): void {
-        const processor: MarkdownPostProcessor = (el: HTMLElement) => {
+        const processor: MarkdownPostProcessor = (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+            if (!this.shouldProcessFile(ctx)) return;
             this.processScheduledAndDeadline(el);
         };
 
@@ -360,7 +379,8 @@ export class LogseqRenderer {
     }
 
     private registerPriorityPostProcessor(): void {
-        const processor: MarkdownPostProcessor = (el: HTMLElement) => {
+        const processor: MarkdownPostProcessor = (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+            if (!this.shouldProcessFile(ctx)) return;
             this.processPriorities(el);
         };
 
@@ -405,7 +425,8 @@ export class LogseqRenderer {
     }
 
     private registerTagProcessor(): void {
-        const processor: MarkdownPostProcessor = (el: HTMLElement) => {
+        const processor: MarkdownPostProcessor = (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+            if (!this.shouldProcessFile(ctx)) return;
             this.processTags(el);
         };
 
@@ -455,7 +476,8 @@ export class LogseqRenderer {
     }
 
     private registerBlockPropertyProcessor(): void {
-        const processor: MarkdownPostProcessor = (el: HTMLElement) => {
+        const processor: MarkdownPostProcessor = (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+            if (!this.shouldProcessFile(ctx)) return;
             this.processBlockProperties(el);
         };
 
@@ -496,7 +518,8 @@ export class LogseqRenderer {
     }
 
     private registerLogbookProcessor(): void {
-        const processor: MarkdownPostProcessor = (el: HTMLElement) => {
+        const processor: MarkdownPostProcessor = (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+            if (!this.shouldProcessFile(ctx)) return;
             this.processLogbook(el);
         };
 

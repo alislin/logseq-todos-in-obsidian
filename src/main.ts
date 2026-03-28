@@ -3,6 +3,7 @@ import { LogseqSettings, DEFAULT_SETTINGS } from './TodoItem';
 import { TodoView, VIEW_TYPE_LOGSEQ_TODOS } from './TodoView';
 import { LogseqRenderer } from './LogseqRenderer';
 import { SettingsTab } from './SettingsTab';
+import { setCurrentFilePath } from './EditorExtension';
 
 export class LogseqTodosPlugin extends Plugin {
 	public settings: LogseqSettings;
@@ -20,7 +21,7 @@ export class LogseqTodosPlugin extends Plugin {
 
 		await this.loadSettings();
 
-		this.renderer = new LogseqRenderer(this);
+		this.renderer = new LogseqRenderer(this, () => this.settings);
 		this.renderer.register();
 
 		this.addRibbonIcon('list-todo', 'Logseq Todos', async () => {
@@ -55,7 +56,12 @@ export class LogseqTodosPlugin extends Plugin {
 
 		this.setupAutoRefresh();
 
-		this.registerEvent(this.app.workspace.on('file-open', () => {
+		this.registerEvent(this.app.workspace.on('file-open', (file) => {
+			if (file) {
+				setCurrentFilePath(file.path);
+			} else {
+				setCurrentFilePath('');
+			}
 		}));
 
 		console.log('Logseq Todos plugin loaded successfully');
@@ -82,10 +88,19 @@ export class LogseqTodosPlugin extends Plugin {
 		try {
 			const loaded = await this.loadData();
 			if (loaded) {
-				this.settings = {
-					...DEFAULT_SETTINGS,
-					...loaded
-				};
+				// 兼容旧版单路径设置
+				if ((loaded as any).logseqPath && !loaded.logseqPaths) {
+					this.settings = {
+						...DEFAULT_SETTINGS,
+						...loaded,
+						logseqPaths: [(loaded as any).logseqPath]
+					};
+				} else {
+					this.settings = {
+						...DEFAULT_SETTINGS,
+						...loaded
+					};
+				}
 			}
 		} catch (error) {
 			console.error('Failed to load settings:', error);
@@ -100,6 +115,10 @@ export class LogseqTodosPlugin extends Plugin {
 
 			if (this.todoView) {
 				await this.todoView.refresh();
+			}
+
+			if (this.renderer) {
+				this.renderer.updateEditorExtension();
 			}
 		} catch (error) {
 			console.error('Failed to save settings:', error);

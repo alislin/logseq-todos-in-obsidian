@@ -28,19 +28,23 @@ export class LogseqParser {
 	async parseAllTodos(): Promise<TodoItem[]> {
 		const allTodos: TodoItem[] = [];
 
-		const journalsPath = `${this.settings.logseqPath}/${this.settings.journalsPath}`;
-		const pagesPath = `${this.settings.logseqPath}/${this.settings.pagesPath}`;
+		for (const logseqPath of this.settings.logseqPaths) {
+			if (!logseqPath) continue;
 
-		const journalFiles = await this.getMarkdownFiles(journalsPath);
-		for (const file of journalFiles) {
-			const todos = await this.parseFile(file, journalsPath);
-			allTodos.push(...todos);
-		}
+			const journalsPath = `${logseqPath}/${this.settings.journalsPath}`;
+			const pagesPath = `${logseqPath}/${this.settings.pagesPath}`;
 
-		const pageFiles = await this.getMarkdownFiles(pagesPath);
-		for (const file of pageFiles) {
-			const todos = await this.parseFile(file, pagesPath);
-			allTodos.push(...todos);
+			const journalFiles = await this.getMarkdownFiles(journalsPath);
+			for (const file of journalFiles) {
+				const todos = await this.parseFile(file, journalsPath);
+				allTodos.push(...todos);
+			}
+
+			const pageFiles = await this.getMarkdownFiles(pagesPath);
+			for (const file of pageFiles) {
+				const todos = await this.parseFile(file, pagesPath);
+				allTodos.push(...todos);
+			}
 		}
 
 		return this.filterAndSort(allTodos);

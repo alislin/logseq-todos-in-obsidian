@@ -20,7 +20,7 @@ export interface TodoItem {
 }
 
 export interface LogseqSettings {
-	logseqPath: string;
+	logseqPaths: string[];
 	journalsPath: string;
 	pagesPath: string;
 	enabledStatuses: TodoStatus[];
@@ -32,7 +32,7 @@ export interface LogseqSettings {
 }
 
 export const DEFAULT_SETTINGS: LogseqSettings = {
-	logseqPath: '工作日志',
+	logseqPaths: ['工作日志'],
 	journalsPath: 'journals',
 	pagesPath: 'pages',
 	enabledStatuses: ['NOW', 'DOING', 'LATER', 'TODO', 'DONE', 'CANCELLED'],
