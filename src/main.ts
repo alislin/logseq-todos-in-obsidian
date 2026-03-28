@@ -128,21 +128,20 @@ export class LogseqTodosPlugin extends Plugin {
 			return;
 		}
 
-		const side = this.settings.sidebarPosition === 'left' ? 'left' : 'right';
-		const newLeaf = side === 'left'
-			? workspace.getLeftLeaf(false)
-			: workspace.getRightLeaf(false);
+		const newLeaf = workspace.getLeaf(true);
 
-		if (newLeaf) {
-			await newLeaf.setViewState({
-				type: VIEW_TYPE_LOGSEQ_TODOS,
-				active: true
-			});
+		await newLeaf.setViewState({
+			type: VIEW_TYPE_LOGSEQ_TODOS,
+			active: true
+		});
 
+		workspace.revealLeaf(newLeaf);
+
+		setTimeout(() => {
 			if (this.todoView) {
-				await this.todoView.loadTodos();
+				this.todoView.loadTodos();
 			}
-		}
+		}, 100);
 	}
 
 	async refreshTodos(): Promise<void> {
