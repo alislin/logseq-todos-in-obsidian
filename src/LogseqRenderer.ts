@@ -1,4 +1,4 @@
-import { MarkdownPostProcessor, Plugin, MarkdownPostProcessorContext, TFile } from 'obsidian';
+import { MarkdownPostProcessor, Plugin, MarkdownPostProcessorContext, TFile, MarkdownRenderer, Component } from 'obsidian';
 import { STATUS_ICONS, TodoStatus, LogseqSettings } from './TodoItem';
 import { createLogseqEditorExtensions, setCurrentSettings, setCurrentBlockIndex } from './EditorExtension';
 import { isPathInLogseqDirs } from './PathUtils';
@@ -590,7 +590,7 @@ export class LogseqRenderer {
             header.innerHTML = `<span class="logseq-block-preview-file">📄 ${getFileName(location.filePath)}</span><span class="logseq-block-preview-line">· 第 ${location.lineNumber} 行</span>`;
         }
         
-        this.blockIndex.getFullContent(uuid).then((lines) => {
+        this.blockIndex.getFullContent(uuid).then(async (lines) => {
             if (!this.previewPopover) return;
             
             if (lines.length === 0) {
@@ -604,7 +604,7 @@ export class LogseqRenderer {
                 firstLine: location.firstLine
             } : undefined;
             
-            const { headerHtml, metaHtml, contentHtml } = createPreviewHtml(lines, blockLocation);
+            const { headerHtml, metaHtml } = createPreviewHtml(lines, blockLocation);
             
             if (headerHtml) {
                 header.innerHTML = headerHtml;
@@ -621,7 +621,52 @@ export class LogseqRenderer {
                 }
             }
             
-            contentContainer.innerHTML = contentHtml || `<div class="logseq-block-preview-loading">${location?.firstLine || '无内容'}</div>`;
+            const contentText = lines.join('\n');
+            
+            const tempComponent = new Component();
+            tempComponent.load();
+            
+            await MarkdownRenderer.renderMarkdown(
+                contentText,
+                contentContainer,
+                location?.filePath || '',
+                tempComponent
+            );
+            
+            this.processPreviewContent(contentContainer);
+            
+            this.setupPreviewBlockRefs(contentContainer);
+        });
+    }
+    
+    private processPreviewContent(container: HTMLElement): void {
+        this.processTaskStatus(container);
+        this.processScheduledAndDeadline(container);
+        this.processPriorities(container);
+        this.processTags(container);
+        this.processLogbook(container);
+    }
+    
+    private setupPreviewBlockRefs(container: HTMLElement): void {
+        const blockRefs = container.querySelectorAll('.logseq-block-ref');
+        blockRefs.forEach((ref) => {
+            const uuid = ref.getAttribute('data-uuid');
+            if (!uuid) return;
+            
+            ref.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.hidePreview();
+                this.jumpToBlock(uuid);
+            });
+            
+            ref.addEventListener('mouseenter', (e) => {
+                e.stopPropagation();
+            });
+            
+            ref.addEventListener('mouseleave', (e) => {
+                e.stopPropagation();
+            });
         });
     }
     

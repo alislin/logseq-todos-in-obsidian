@@ -1,6 +1,6 @@
 import { ViewPlugin, Decoration, EditorView, WidgetType, DecorationSet, ViewUpdate } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
-import { TFile } from 'obsidian';
+import { TFile, MarkdownRenderer, Component } from 'obsidian';
 import { STATUS_ICONS, TodoStatus, LogseqSettings } from './TodoItem';
 import { isPathInLogseqDirs } from './PathUtils';
 import { BlockIndexManager } from './BlockIndex';
@@ -214,7 +214,7 @@ class BlockRefWidget extends WidgetType {
             header.innerHTML = `<span class="logseq-block-preview-file">📄 ${location.filePath.split('/').pop()?.replace('.md', '') || location.filePath}</span><span class="logseq-block-preview-line">· 第 ${location.lineNumber} 行</span>`;
         }
         
-        currentBlockIndex.getFullContent(this.uuid).then((lines) => {
+        currentBlockIndex.getFullContent(this.uuid).then(async (lines) => {
             if (!this.previewEl) return;
             
             if (lines.length === 0) {
@@ -228,7 +228,7 @@ class BlockRefWidget extends WidgetType {
                 firstLine: location.firstLine
             } : undefined;
             
-            const { headerHtml, metaHtml, contentHtml } = createPreviewHtml(lines, blockLocation);
+            const { headerHtml, metaHtml } = createPreviewHtml(lines, blockLocation);
             
             if (headerHtml) {
                 header.innerHTML = headerHtml;
@@ -245,8 +245,261 @@ class BlockRefWidget extends WidgetType {
                 }
             }
             
-            contentContainer.innerHTML = contentHtml || `<div class="logseq-block-preview-loading">${location?.firstLine || '无内容'}</div>`;
+            const contentText = lines.join('\n');
+            
+            const tempComponent = new Component();
+            tempComponent.load();
+            
+            await MarkdownRenderer.renderMarkdown(
+                contentText,
+                contentContainer,
+                location?.filePath || '',
+                tempComponent
+            );
+            
+            this.processPreviewContent(contentContainer);
         });
+    }
+    
+    private processPreviewContent(container: HTMLElement): void {
+        this.processTaskStatus(container);
+        this.processScheduledAndDeadline(container);
+        this.processPriorities(container);
+        this.processTags(container);
+        this.processLogbook(container);
+    }
+    
+    private processTaskStatus(container: HTMLElement): void {
+        const listItems = container.querySelectorAll('li');
+        
+        listItems.forEach((li) => {
+            const textNodes: Text[] = [];
+            const walker = document.createTreeWalker(li, NodeFilter.SHOW_TEXT, null);
+            let node: Text | null;
+            while ((node = walker.nextNode() as Text)) {
+                if (node.parentElement?.closest('code, pre')) continue;
+                textNodes.push(node);
+            }
+            
+            for (const textNode of textNodes) {
+                const text = textNode.textContent || '';
+                const statusPattern = /^(NOW|DOING|LATER|TODO|DONE|CANCELLED)\s+/i;
+                const match = text.match(statusPattern);
+                
+                if (match) {
+                    const status = match[1].toUpperCase() as TodoStatus;
+                    const restText = text.slice(match[0].length);
+                    
+                    const statusSpan = document.createElement('span');
+                    statusSpan.className = `logseq-task-status logseq-status-${status.toLowerCase()}`;
+                    statusSpan.textContent = `${STATUS_ICONS[status]} ${status}`;
+                    
+                    const parent = textNode.parentNode;
+                    if (parent) {
+                        const fragment = document.createDocumentFragment();
+                        fragment.appendChild(statusSpan);
+                        if (restText) {
+                            fragment.appendChild(document.createTextNode(restText));
+                        }
+                        parent.replaceChild(fragment, textNode);
+                    }
+                }
+            }
+        });
+    }
+    
+    private processScheduledAndDeadline(container: HTMLElement): void {
+        const walker = document.createTreeWalker(
+            container,
+            NodeFilter.SHOW_TEXT,
+            null
+        );
+        
+        const textNodes: Text[] = [];
+        let node: Text | null;
+        while ((node = walker.nextNode() as Text)) {
+            if (node.parentElement?.closest('code, pre')) continue;
+            const text = node.textContent || '';
+            if (/SCHEDULED:\s*</i.test(text) || /DEADLINE:\s*</i.test(text)) {
+                textNodes.push(node);
+            }
+        }
+        
+        for (const textNode of textNodes) {
+            const text = textNode.textContent || '';
+            
+            let result = text.replace(/SCHEDULED:\s*<([^>]+)>/gi, (match, date) => {
+                const span = document.createElement('span');
+                span.className = 'logseq-scheduled';
+                span.textContent = date;
+                return span.outerHTML;
+            });
+            
+            result = result.replace(/DEADLINE:\s*<([^>]+)>/gi, (match, date) => {
+                const span = document.createElement('span');
+                span.className = 'logseq-deadline';
+                span.textContent = date;
+                return span.outerHTML;
+            });
+            
+            if (result !== text) {
+                const parent = textNode.parentNode;
+                if (parent) {
+                    const span = document.createElement('span');
+                    span.innerHTML = result;
+                    parent.replaceChild(span, textNode);
+                }
+            }
+        }
+    }
+    
+    private processPriorities(container: HTMLElement): void {
+        const walker = document.createTreeWalker(
+            container,
+            NodeFilter.SHOW_TEXT,
+            null
+        );
+        
+        const textNodes: Text[] = [];
+        let node: Text | null;
+        while ((node = walker.nextNode() as Text)) {
+            if (node.parentElement?.closest('code, pre')) continue;
+            const text = node.textContent || '';
+            if (/#P[0-2]\b/.test(text)) {
+                textNodes.push(node);
+            }
+        }
+        
+        for (const textNode of textNodes) {
+            const text = textNode.textContent || '';
+            
+            const result = text.replace(/#(P[0-2])\b/g, (match, priority) => {
+                const p = priority.toLowerCase();
+                return `<span class="logseq-priority-${p}">${match}</span>`;
+            });
+            
+            if (result !== text) {
+                const parent = textNode.parentNode;
+                if (parent) {
+                    const span = document.createElement('span');
+                    span.innerHTML = result;
+                    parent.replaceChild(span, textNode);
+                }
+            }
+        }
+    }
+    
+    private processTags(container: HTMLElement): void {
+        const walker = document.createTreeWalker(
+            container,
+            NodeFilter.SHOW_TEXT,
+            null
+        );
+        
+        const textNodes: Text[] = [];
+        let node: Text | null;
+        while ((node = walker.nextNode() as Text)) {
+            if (node.parentElement?.closest('code, pre, a')) continue;
+            const text = node.textContent || '';
+            if (/(?<![a-zA-Z0-9])#[a-zA-Z0-9_\u4e00-\u9fa5]+/.test(text)) {
+                textNodes.push(node);
+            }
+        }
+        
+        for (const textNode of textNodes) {
+            const text = textNode.textContent || '';
+            
+            const result = text.replace(
+                /(?<![a-zA-Z0-9])(#[a-zA-Z0-9_\u4e00-\u9fa5]+)/g,
+                (match) => {
+                    if (/^#P[0-2]$/i.test(match)) {
+                        return match;
+                    }
+                    return `<span class="logseq-tag">${match}</span>`;
+                }
+            );
+            
+            if (result !== text) {
+                const parent = textNode.parentNode;
+                if (parent) {
+                    const span = document.createElement('span');
+                    span.innerHTML = result;
+                    parent.replaceChild(span, textNode);
+                }
+            }
+        }
+    }
+    
+    private processLogbook(container: HTMLElement): void {
+        const logbookBlocks = container.querySelectorAll('p, li, div');
+        
+        logbookBlocks.forEach((block) => {
+            const text = block.textContent || '';
+            if (text.includes(':LOGBOOK:') && text.includes(':END:')) {
+                const html = block.innerHTML;
+                const clockRegex = /CLOCK:\s*\[([^\]]+)\]--\[([^\]]+)\]\s*=>\s*(\d+:\d+:\d+)/g;
+                const entries: { start: string; end: string; duration: string }[] = [];
+                
+                let clockMatch;
+                while ((clockMatch = clockRegex.exec(text)) !== null) {
+                    entries.push({
+                        start: clockMatch[1],
+                        end: clockMatch[2],
+                        duration: clockMatch[3].trim()
+                    });
+                }
+                
+                if (entries.length > 0) {
+                    const logbookPattern = /:LOGBOOK:[\s\S]*?:END:/g;
+                    const newHtml = html.replace(logbookPattern, () => {
+                        const logbookContainer = document.createElement('span');
+                        logbookContainer.className = 'logseq-logbook-container';
+                        
+                        for (const entry of entries) {
+                            const entrySpan = document.createElement('span');
+                            entrySpan.className = 'logseq-logbook-entry';
+                            
+                            const startSpan = document.createElement('span');
+                            startSpan.className = 'logseq-logbook-time';
+                            startSpan.textContent = this.formatDateTime(entry.start);
+                            
+                            const arrowSpan = document.createElement('span');
+                            arrowSpan.className = 'logseq-logbook-arrow';
+                            arrowSpan.textContent = ' → ';
+                            
+                            const endSpan = document.createElement('span');
+                            endSpan.className = 'logseq-logbook-time';
+                            endSpan.textContent = this.formatDateTime(entry.end);
+                            
+                            const durationSpan = document.createElement('span');
+                            durationSpan.className = 'logseq-logbook-duration';
+                            durationSpan.textContent = ` (${entry.duration})`;
+                            
+                            entrySpan.appendChild(startSpan);
+                            entrySpan.appendChild(arrowSpan);
+                            entrySpan.appendChild(endSpan);
+                            entrySpan.appendChild(durationSpan);
+                            
+                            logbookContainer.appendChild(entrySpan);
+                        }
+                        
+                        return logbookContainer.outerHTML;
+                    });
+                    
+                    if (newHtml !== html) {
+                        block.innerHTML = newHtml;
+                    }
+                }
+            }
+        });
+    }
+    
+    private formatDateTime(dateTime: string): string {
+        const match = dateTime.match(/(\d{4})-(\d{2})-(\d{2})\s+\w+\s+(\d{2}:\d+:\d+)/);
+        if (match) {
+            return `${match[2]}-${match[3]} ${match[4].slice(0, 5)}`;
+        }
+        return dateTime;
     }
     
     private adjustPreviewPosition(preview: HTMLElement, triggerRect: DOMRect): void {

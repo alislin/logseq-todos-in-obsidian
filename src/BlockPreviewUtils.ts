@@ -114,7 +114,7 @@ export function getFileName(path: string): string {
 export function createPreviewHtml(
     lines: string[],
     location?: BlockLocation | null
-): { headerHtml: string; metaHtml: string; contentHtml: string } {
+): { headerHtml: string; metaHtml: string } {
     const metadata = parseBlockMetadata(lines);
     
     let headerHtml = '';
@@ -141,15 +141,6 @@ export function createPreviewHtml(
         metaHtml += `<span class="logseq-preview-priority ${priorityClass}">#${metadata.priority}</span>`;
     }
     
-    const contentHtml = metadata.contentLines
-        .map(l => `<div class="logseq-block-preview-content-line" style="margin-left: ${l.indentDepth * 1.5}em">${escapeHtml(l.text)}</div>`)
-        .join('');
-    
-    return { headerHtml, metaHtml, contentHtml };
+    return { headerHtml, metaHtml };
 }
 
-function escapeHtml(text: string): string {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
