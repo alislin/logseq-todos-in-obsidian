@@ -142,7 +142,6 @@ export function createPreviewHtml(
     }
     
     const contentHtml = metadata.contentLines
-        .slice(0, 10)
         .map(l => `<div class="logseq-block-preview-content-line" style="margin-left: ${l.indentDepth * 1.5}em">${escapeHtml(l.text)}</div>`)
         .join('');
     
