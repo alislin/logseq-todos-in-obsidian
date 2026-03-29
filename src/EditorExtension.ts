@@ -88,6 +88,8 @@ class BlockRefWidget extends WidgetType {
     private uuid: string;
     private previewEl: HTMLElement | null = null;
     private hideTimeout: number | null = null;
+    private resizeObserver: ResizeObserver | null = null;
+    private triggerRect: DOMRect | null = null;
 
     constructor(uuid: string) {
         super();
@@ -168,23 +170,11 @@ class BlockRefWidget extends WidgetType {
         preview.className = 'logseq-block-preview';
         
         const rect = (e.target as HTMLElement).getBoundingClientRect();
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
+        this.triggerRect = rect;
         
-        let left = rect.left;
-        let top = rect.bottom + 5;
-        
-        if (left + 420 > viewportWidth) {
-            left = viewportWidth - 420;
-        }
-        if (top + 220 > viewportHeight) {
-            top = rect.top - 220;
-        }
-        
-        preview.style.left = `${Math.max(10, left)}px`;
-        preview.style.top = `${Math.max(10, top)}px`;
         preview.style.position = 'fixed';
         preview.style.zIndex = '1000';
+        preview.style.visibility = 'hidden';
         
         const header = document.createElement('div');
         header.className = 'logseq-block-preview-header';
@@ -198,6 +188,16 @@ class BlockRefWidget extends WidgetType {
         
         document.body.appendChild(preview);
         this.previewEl = preview;
+        
+        this.resizeObserver = new ResizeObserver(() => {
+            if (this.previewEl && this.triggerRect) {
+                this.adjustPreviewPosition(this.previewEl, this.triggerRect);
+            }
+        });
+        this.resizeObserver.observe(preview);
+        
+        this.adjustPreviewPosition(preview, rect);
+        preview.style.visibility = 'visible';
         
         preview.addEventListener('mouseenter', () => {
             this.cancelHide();
@@ -248,6 +248,39 @@ class BlockRefWidget extends WidgetType {
             contentContainer.innerHTML = contentHtml || `<div class="logseq-block-preview-loading">${location?.firstLine || '无内容'}</div>`;
         });
     }
+    
+    private adjustPreviewPosition(preview: HTMLElement, triggerRect: DOMRect): void {
+        const previewRect = preview.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const gap = 5;
+        
+        let top: number;
+        const spaceBelow = viewportHeight - triggerRect.bottom - gap;
+        const spaceAbove = triggerRect.top;
+        
+        if (spaceBelow >= previewRect.height) {
+            top = triggerRect.bottom + gap;
+        } else if (spaceAbove >= previewRect.height) {
+            top = triggerRect.top - previewRect.height - gap;
+        } else if (spaceBelow >= spaceAbove) {
+            top = triggerRect.bottom + gap;
+            top = Math.min(top, viewportHeight - previewRect.height - gap);
+        } else {
+            top = Math.max(gap, triggerRect.top - previewRect.height - gap);
+        }
+        
+        let left = triggerRect.left;
+        const previewWidth = previewRect.width || 400;
+        
+        if (left + previewWidth > viewportWidth - gap) {
+            left = viewportWidth - previewWidth - gap;
+        }
+        left = Math.max(gap, left);
+        
+        preview.style.top = `${top}px`;
+        preview.style.left = `${left}px`;
+    }
 
     private scheduleHide(): void {
         this.cancelHide();
@@ -265,10 +298,15 @@ class BlockRefWidget extends WidgetType {
 
     private hidePreview(): void {
         this.cancelHide();
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+            this.resizeObserver = null;
+        }
         if (this.previewEl) {
             this.previewEl.remove();
             this.previewEl = null;
         }
+        this.triggerRect = null;
     }
 
     eq(other: BlockRefWidget): boolean {
