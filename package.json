@@ -7,6 +7,9 @@
     "build": "tsc -noEmit && node esbuild.config.mjs",
     "dev": "tsc -noEmit && node esbuild.config.mjs --watch",
     "clean": "rm -f main.js styles.css",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "version:patch": "node scripts/bump-version.js patch",
     "version:minor": "node scripts/bump-version.js minor",
     "version:major": "node scripts/bump-version.js major"
@@ -24,5 +27,10 @@
     "esbuild": "^0.27.4",
     "obsidian": "^1.12.3",
     "typescript": "^6.0.2"
+  },
+  "devDependencies": {
+    "vitest": "^1.6.0",
+    "@vitest/coverage-v8": "^1.6.0",
+    "jsdom": "^24.1.0"
   }
 }
