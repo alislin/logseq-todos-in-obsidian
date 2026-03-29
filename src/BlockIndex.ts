@@ -116,14 +116,14 @@ export class BlockIndexManager {
         }
     }
     
-    private cleanLine(line: string): string {
+    cleanLine(line: string): string {
         return line
             .replace(/^[-*+]\s*/, '')
             .replace(/^(NOW|DOING|LATER|TODO|DONE|CANCELLED)\s+/i, '')
-            .replace(/id::\s*[a-f0-9-]+/i, '')
+            .replace(/id::\s*[a-zA-Z0-9-]+/i, '')
             .replace(/SCHEDULED:\s*<[^>]+>/gi, '')
             .replace(/DEADLINE:\s*<[^>]+>/gi, '')
-            .replace(/\(\([a-f0-9-]+\)\)/g, '')
+            .replace(/\(\([a-zA-Z0-9-]+\)\)/g, '')
             .trim();
     }
     
