@@ -259,6 +259,9 @@ export class LogseqRenderer {
                 padding: 12px;
                 font-size: 0.9em;
                 line-height: 1.5;
+                user-select: text;
+                -webkit-user-select: text;
+                cursor: default;
             }
             .logseq-block-preview-header {
                 font-size: 0.8em;
@@ -269,13 +272,19 @@ export class LogseqRenderer {
                 display: flex;
                 align-items: center;
                 gap: 8px;
+                user-select: text;
+                -webkit-user-select: text;
             }
             .logseq-block-preview-file {
                 font-weight: 600;
                 color: var(--text-accent, #8b5cf6);
+                user-select: text;
+                -webkit-user-select: text;
             }
             .logseq-block-preview-line {
                 color: var(--text-faint, #9ca3af);
+                user-select: text;
+                -webkit-user-select: text;
             }
             .logseq-block-preview-meta {
                 display: flex;
@@ -284,6 +293,8 @@ export class LogseqRenderer {
                 margin-bottom: 8px;
                 padding-bottom: 8px;
                 border-bottom: 1px solid var(--background-modifier-border, #e0e0e0);
+                user-select: text;
+                -webkit-user-select: text;
             }
             .logseq-preview-status {
                 display: inline-flex;
@@ -337,9 +348,15 @@ export class LogseqRenderer {
             .logseq-block-preview-content {
                 white-space: pre-wrap;
                 word-break: break-word;
+                user-select: text;
+                -webkit-user-select: text;
+                cursor: text;
             }
             .logseq-block-preview-content-line {
                 padding: 2px 0;
+                user-select: text;
+                -webkit-user-select: text;
+                cursor: text;
             }
             .logseq-block-preview-loading {
                 color: var(--text-muted, #6b7280);
