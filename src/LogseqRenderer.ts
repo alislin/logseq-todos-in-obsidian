@@ -246,6 +246,103 @@ export class LogseqRenderer {
             .logseq-task-content {
                 margin-left: 4px;
             }
+            .logseq-block-preview {
+                max-height: 400px;
+                overflow-y: auto;
+                max-width: 500px;
+                background: var(--background-primary, #fff);
+                border: 1px solid var(--background-modifier-border, #e0e0e0);
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                padding: 12px;
+                font-size: 0.9em;
+                line-height: 1.5;
+            }
+            .logseq-block-preview-header {
+                font-size: 0.8em;
+                color: var(--text-muted, #6b7280);
+                border-bottom: 1px solid var(--background-modifier-border, #e0e0e0);
+                padding-bottom: 8px;
+                margin-bottom: 8px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .logseq-block-preview-file {
+                font-weight: 600;
+                color: var(--text-accent, #8b5cf6);
+            }
+            .logseq-block-preview-line {
+                color: var(--text-faint, #9ca3af);
+            }
+            .logseq-block-preview-meta {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                margin-bottom: 8px;
+                padding-bottom: 8px;
+                border-bottom: 1px solid var(--background-modifier-border, #e0e0e0);
+            }
+            .logseq-preview-status {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-size: 0.85em;
+                font-weight: 600;
+            }
+            .logseq-preview-scheduled {
+                font-style: italic;
+                color: #8b5cf6;
+                background-color: rgba(139, 92, 246, 0.1);
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-size: 0.85em;
+            }
+            .logseq-preview-scheduled::before {
+                content: "📅 ";
+            }
+            .logseq-preview-deadline {
+                font-style: italic;
+                color: #dc2626;
+                background-color: rgba(220, 38, 38, 0.1);
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-size: 0.85em;
+            }
+            .logseq-preview-deadline::before {
+                content: "⏰ ";
+            }
+            .logseq-preview-priority {
+                font-weight: 600;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-size: 0.85em;
+            }
+            .logseq-preview-priority-p0 {
+                background-color: rgba(239, 68, 68, 0.2);
+                color: #ef4444;
+            }
+            .logseq-preview-priority-p1 {
+                background-color: rgba(249, 115, 22, 0.2);
+                color: #f97316;
+            }
+            .logseq-preview-priority-p2 {
+                background-color: rgba(59, 130, 246, 0.2);
+                color: #3b82f6;
+            }
+            .logseq-block-preview-content {
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
+            .logseq-block-preview-content-line {
+                padding: 2px 0;
+            }
+            .logseq-block-preview-loading {
+                color: var(--text-muted, #6b7280);
+                font-style: italic;
+            }
         `;
     }
 
@@ -434,11 +531,11 @@ export class LogseqRenderer {
         let left = rect.left;
         let top = rect.bottom + 5;
         
-        if (left + 420 > viewportWidth) {
-            left = viewportWidth - 420;
+        if (left + 520 > viewportWidth) {
+            left = viewportWidth - 520;
         }
-        if (top + 220 > viewportHeight) {
-            top = rect.top - 220;
+        if (top + 420 > viewportHeight) {
+            top = rect.top - 420;
         }
         
         preview.style.left = `${Math.max(10, left)}px`;
@@ -446,27 +543,69 @@ export class LogseqRenderer {
         preview.style.position = 'fixed';
         preview.style.zIndex = '1000';
         
-        preview.textContent = '加载中...';
+        const header = document.createElement('div');
+        header.className = 'logseq-block-preview-header';
+        header.innerHTML = `<span class="logseq-block-preview-file">📄 加载中...</span>`;
+        preview.appendChild(header);
+        
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'logseq-block-preview-content';
+        contentContainer.innerHTML = `<div class="logseq-block-preview-loading">加载中...</div>`;
+        preview.appendChild(contentContainer);
+        
         document.body.appendChild(preview);
         this.previewPopover = preview;
         
-        if (this.blockIndex) {
-            this.blockIndex.getFullContent(uuid).then((lines) => {
-                if (this.previewPopover && lines.length > 0) {
-                    this.previewPopover.innerHTML = lines
-                        .slice(0, 10)
-                        .map(l => `<div>${l}</div>`)
-                        .join('');
-                } else if (this.previewPopover) {
-                    const location = this.blockIndex?.getLocation(uuid);
-                    if (location && location.firstLine) {
-                        this.previewPopover.textContent = location.firstLine;
-                    } else {
-                        this.previewPopover.textContent = '未找到块内容';
-                    }
-                }
-            });
+        if (!this.blockIndex) return;
+        
+        const location = this.blockIndex.getLocation(uuid);
+        if (location) {
+            header.innerHTML = `<span class="logseq-block-preview-file">📄 ${this.getFileName(location.filePath)}</span><span class="logseq-block-preview-line">· 行 ${location.lineNumber}</span>`;
         }
+        
+        this.blockIndex.getFullContent(uuid).then((lines) => {
+            if (!this.previewPopover) return;
+            
+            if (lines.length === 0) {
+                contentContainer.innerHTML = `<div class="logseq-block-preview-loading">未找到块内容</div>`;
+                return;
+            }
+            
+            const metadata = this.parseBlockMetadata(lines);
+            
+            let metaHtml = '';
+            if (metadata.status) {
+                const statusClass = `logseq-status-${metadata.status.toLowerCase()}`;
+                const icon = STATUS_ICONS[metadata.status as TodoStatus] || '';
+                metaHtml += `<span class="logseq-preview-status ${statusClass}">${icon} ${metadata.status}</span>`;
+            }
+            if (metadata.scheduled) {
+                metaHtml += `<span class="logseq-preview-scheduled">${metadata.scheduled}</span>`;
+            }
+            if (metadata.deadline) {
+                metaHtml += `<span class="logseq-preview-deadline">${metadata.deadline}</span>`;
+            }
+            if (metadata.priority) {
+                const priorityClass = `logseq-preview-priority-${metadata.priority.toLowerCase()}`;
+                metaHtml += `<span class="logseq-preview-priority ${priorityClass}">#${metadata.priority}</span>`;
+            }
+            
+            if (metaHtml) {
+                const metaEl = document.createElement('div');
+                metaEl.className = 'logseq-block-preview-meta';
+                metaEl.innerHTML = metaHtml;
+                
+                const existingHeader = this.previewPopover.querySelector('.logseq-block-preview-header');
+                if (existingHeader) {
+                    existingHeader.after(metaEl);
+                }
+            }
+            
+            const contentHtml = metadata.contentLines
+                .map(l => `<div class="logseq-block-preview-content-line">${l}</div>`)
+                .join('');
+            contentContainer.innerHTML = contentHtml || `<div class="logseq-block-preview-loading">${location?.firstLine || '无内容'}</div>`;
+        });
     }
 
     private hidePreview(): void {
@@ -750,5 +889,65 @@ export class LogseqRenderer {
             return `${match[2]}-${match[3]} ${match[4].slice(0, 5)}`;
         }
         return dateTime;
+    }
+
+    private getFileName(path: string): string {
+        const parts = path.split('/');
+        const fileName = parts[parts.length - 1];
+        return fileName.replace(/\.md$/, '');
+    }
+
+    private parseBlockMetadata(lines: string[]): {
+        status: string | null;
+        scheduled: string | null;
+        deadline: string | null;
+        priority: string | null;
+        contentLines: string[];
+    } {
+        let status: string | null = null;
+        let scheduled: string | null = null;
+        let deadline: string | null = null;
+        let priority: string | null = null;
+        const contentLines: string[] = [];
+
+        for (const line of lines) {
+            const statusMatch = line.match(/^\s*[-*+]\s*(NOW|DOING|LATER|TODO|DONE|CANCELLED)\s/i) 
+                || line.match(/^(NOW|DOING|LATER|TODO|DONE|CANCELLED)\s/i);
+            if (statusMatch && !status) {
+                status = statusMatch[1].toUpperCase();
+            }
+
+            const scheduledMatch = line.match(/SCHEDULED:\s*<([^>]+)>/i);
+            if (scheduledMatch && !scheduled) {
+                scheduled = scheduledMatch[1];
+            }
+
+            const deadlineMatch = line.match(/DEADLINE:\s*<([^>]+)>/i);
+            if (deadlineMatch && !deadline) {
+                deadline = deadlineMatch[1];
+            }
+
+            const priorityMatch = line.match(/#(P[0-2])\b/i);
+            if (priorityMatch && !priority) {
+                priority = priorityMatch[1].toUpperCase();
+            }
+
+            let cleanLine = line
+                .replace(/^(\s*)[-*+]\s*/, '')
+                .replace(/^(\s+)/, '')
+                .replace(/^(NOW|DOING|LATER|TODO|DONE|CANCELLED)\s+/i, '')
+                .replace(/SCHEDULED:\s*<[^>]+>/gi, '')
+                .replace(/DEADLINE:\s*<[^>]+>/gi, '')
+                .replace(/#P[0-2]\b/i, '')
+                .replace(/id::\s*[a-f0-9-]+/i, '')
+                .replace(/\(\([a-f0-9-]+\)\)/g, '')
+                .trim();
+
+            if (cleanLine) {
+                contentLines.push(cleanLine);
+            }
+        }
+
+        return { status, scheduled, deadline, priority, contentLines };
     }
 }

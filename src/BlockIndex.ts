@@ -163,20 +163,23 @@ export class BlockIndexManager {
             const idLineIndex = location.lineNumber;
             let startLine = idLineIndex;
             
-            if (lines[idLineIndex].match(/id::\s*[a-f0d9-]+/i)) {
+            if (lines[idLineIndex]?.match(/id::\s*[a-f0-9-]+/i)) {
                 startLine = idLineIndex - 1;
             }
             
-            while (startLine > 0 && lines[startLine - 1].match(/^\s+/)) {
-                startLine--;
+            if (startLine < 0 || startLine >= lines.length) {
+                return [location.firstLine];
             }
             
-            const baseIndent = lines[startLine]?.match(/^(\s*)/)?.[1]?.length || 0;
+            const baseIndentMatch = lines[startLine]?.match(/^(\s*)/);
+            const baseIndent = baseIndentMatch ? baseIndentMatch[1].length : 0;
+            
             let endLine = startLine + 1;
             
             while (endLine < lines.length) {
                 const line = lines[endLine];
-                const lineIndent = line.match(/^(\s*)/)?.[1]?.length || 0;
+                const lineIndentMatch = line.match(/^(\s*)/);
+                const lineIndent = lineIndentMatch ? lineIndentMatch[1].length : 0;
                 
                 if (line.trim() === '') {
                     endLine++;
@@ -185,18 +188,14 @@ export class BlockIndexManager {
                 
                 if (lineIndent <= baseIndent) break;
                 
-                if (line.match(/id::\s*[a-f0d9-]+/i) && lineIndent === baseIndent + 2) {
-                    break;
-                }
-                
                 endLine++;
             }
             
             const blockLines: string[] = [];
             for (let i = startLine; i < endLine && i < lines.length; i++) {
-                const line = this.cleanLine(lines[i]);
-                if (line && !line.match(/^id::/i)) {
-                    blockLines.push(line);
+                const rawLine = lines[i];
+                if (!rawLine.match(/id::\s*[a-f0-9-]+/i)) {
+                    blockLines.push(rawLine);
                 }
             }
             
