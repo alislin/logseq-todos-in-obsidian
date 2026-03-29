@@ -348,11 +348,26 @@ export class LogseqRenderer {
                 color: #3b82f6;
             }
             .logseq-block-preview-content {
-                white-space: pre-wrap;
                 word-break: break-word;
                 user-select: text;
                 -webkit-user-select: text;
                 cursor: text;
+            }
+            .logseq-block-preview-content p {
+                margin: 0.3em 0;
+            }
+            .logseq-block-preview-content ul, .logseq-block-preview-content ol {
+                margin: 0.3em 0;
+                padding-left: 1.5em;
+            }
+            .logseq-block-preview-content li {
+                margin: 0.1em 0;
+            }
+            .logseq-block-preview-content > *:first-child {
+                margin-top: 0;
+            }
+            .logseq-block-preview-content > *:last-child {
+                margin-bottom: 0;
             }
             .logseq-block-preview-content-line {
                 padding: 2px 0;
