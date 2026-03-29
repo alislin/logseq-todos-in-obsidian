@@ -140,7 +140,7 @@ class BlockRefWidget extends WidgetType {
         }
         
         try {
-            const app = (view as any).plugin?.app;
+            const app = (currentBlockIndex as any).app;
             if (!app) return;
             
             const file = app.vault.getAbstractFileByPath(location.filePath);
