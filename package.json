@@ -1,6 +1,6 @@
 {
   "name": "logseq-todos-in-obsidian",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Display Logseq todos in Obsidian sidebar with full status support",
   "main": "main.js",
   "scripts": {
