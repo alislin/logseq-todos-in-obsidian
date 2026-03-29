@@ -12,6 +12,7 @@ export class LogseqRenderer {
     private postProcessors: MarkdownPostProcessor[] = [];
     private editorExtensions: any[] = [];
     private previewPopover: HTMLElement | null = null;
+    private hideTimeout: number | null = null;
 
     constructor(plugin: Plugin, getSettings: () => LogseqSettings, blockIndex: BlockIndexManager | null) {
         this.plugin = plugin;
@@ -465,7 +466,7 @@ export class LogseqRenderer {
                 });
                 
                 span.addEventListener('mouseleave', () => {
-                    this.hidePreview();
+                    this.scheduleHide();
                 });
                 
                 parts.push(span);
@@ -557,6 +558,14 @@ export class LogseqRenderer {
         document.body.appendChild(preview);
         this.previewPopover = preview;
         
+        preview.addEventListener('mouseenter', () => {
+            this.cancelHide();
+        });
+        
+        preview.addEventListener('mouseleave', () => {
+            this.scheduleHide();
+        });
+        
         if (!this.blockIndex) return;
         
         const location = this.blockIndex.getLocation(uuid);
@@ -599,7 +608,22 @@ export class LogseqRenderer {
         });
     }
 
+    private scheduleHide(): void {
+        this.cancelHide();
+        this.hideTimeout = window.setTimeout(() => {
+            this.hidePreview();
+        }, 150);
+    }
+
+    private cancelHide(): void {
+        if (this.hideTimeout) {
+            window.clearTimeout(this.hideTimeout);
+            this.hideTimeout = null;
+        }
+    }
+
     private hidePreview(): void {
+        this.cancelHide();
         if (this.previewPopover) {
             this.previewPopover.remove();
             this.previewPopover = null;

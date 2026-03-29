@@ -87,6 +87,7 @@ class DeadlineWidget extends WidgetType {
 class BlockRefWidget extends WidgetType {
     private uuid: string;
     private previewEl: HTMLElement | null = null;
+    private hideTimeout: number | null = null;
 
     constructor(uuid: string) {
         super();
@@ -124,7 +125,7 @@ class BlockRefWidget extends WidgetType {
         });
         
         span.addEventListener('mouseleave', () => {
-            this.hidePreview();
+            this.scheduleHide();
         });
         
         return span;
@@ -198,6 +199,14 @@ class BlockRefWidget extends WidgetType {
         document.body.appendChild(preview);
         this.previewEl = preview;
         
+        preview.addEventListener('mouseenter', () => {
+            this.cancelHide();
+        });
+        
+        preview.addEventListener('mouseleave', () => {
+            this.scheduleHide();
+        });
+        
         if (!currentBlockIndex) return;
         
         const location = currentBlockIndex.getLocation(this.uuid);
@@ -240,7 +249,22 @@ class BlockRefWidget extends WidgetType {
         });
     }
 
+    private scheduleHide(): void {
+        this.cancelHide();
+        this.hideTimeout = window.setTimeout(() => {
+            this.hidePreview();
+        }, 150);
+    }
+
+    private cancelHide(): void {
+        if (this.hideTimeout) {
+            window.clearTimeout(this.hideTimeout);
+            this.hideTimeout = null;
+        }
+    }
+
     private hidePreview(): void {
+        this.cancelHide();
         if (this.previewEl) {
             this.previewEl.remove();
             this.previewEl = null;
