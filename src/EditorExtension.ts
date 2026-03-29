@@ -4,6 +4,7 @@ import { TFile } from 'obsidian';
 import { STATUS_ICONS, TodoStatus, LogseqSettings } from './TodoItem';
 import { isPathInLogseqDirs } from './PathUtils';
 import { BlockIndexManager } from './BlockIndex';
+import { createPreviewHtml, BlockLocation } from './BlockPreviewUtils';
 
 let currentFilePath: string = '';
 let currentSettings: LogseqSettings | null = null;
@@ -184,27 +185,59 @@ class BlockRefWidget extends WidgetType {
         preview.style.position = 'fixed';
         preview.style.zIndex = '1000';
         
-        preview.textContent = '加载中...';
+        const header = document.createElement('div');
+        header.className = 'logseq-block-preview-header';
+        header.innerHTML = `<span class="logseq-block-preview-file">📄 加载中...</span>`;
+        preview.appendChild(header);
+        
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'logseq-block-preview-content';
+        contentContainer.innerHTML = `<div class="logseq-block-preview-loading">加载中...</div>`;
+        preview.appendChild(contentContainer);
+        
         document.body.appendChild(preview);
         this.previewEl = preview;
         
-        if (currentBlockIndex) {
-            currentBlockIndex.getFullContent(this.uuid).then((lines) => {
-                if (this.previewEl && lines.length > 0) {
-                    this.previewEl.innerHTML = lines
-                        .slice(0, 10)
-                        .map(l => `<div>${l}</div>`)
-                        .join('');
-                } else if (this.previewEl) {
-                    const location = currentBlockIndex?.getLocation(this.uuid);
-                    if (location && location.firstLine) {
-                        this.previewEl.textContent = location.firstLine;
-                    } else {
-                        this.previewEl.textContent = '未找到块内容';
-                    }
-                }
-            });
+        if (!currentBlockIndex) return;
+        
+        const location = currentBlockIndex.getLocation(this.uuid);
+        if (location) {
+            header.innerHTML = `<span class="logseq-block-preview-file">📄 ${location.filePath.split('/').pop()?.replace('.md', '') || location.filePath}</span><span class="logseq-block-preview-line">· 行 ${location.lineNumber}</span>`;
         }
+        
+        currentBlockIndex.getFullContent(this.uuid).then((lines) => {
+            if (!this.previewEl) return;
+            
+            if (lines.length === 0) {
+                contentContainer.innerHTML = `<div class="logseq-block-preview-loading">${location?.firstLine || '未找到块内容'}</div>`;
+                return;
+            }
+            
+            const blockLocation: BlockLocation | undefined = location ? {
+                filePath: location.filePath,
+                lineNumber: location.lineNumber,
+                firstLine: location.firstLine
+            } : undefined;
+            
+            const { headerHtml, metaHtml, contentHtml } = createPreviewHtml(lines, blockLocation);
+            
+            if (headerHtml) {
+                header.innerHTML = headerHtml;
+            }
+            
+            if (metaHtml) {
+                const metaEl = document.createElement('div');
+                metaEl.className = 'logseq-block-preview-meta';
+                metaEl.innerHTML = metaHtml;
+                
+                const existingHeader = this.previewEl.querySelector('.logseq-block-preview-header');
+                if (existingHeader) {
+                    existingHeader.after(metaEl);
+                }
+            }
+            
+            contentContainer.innerHTML = contentHtml || `<div class="logseq-block-preview-loading">${location?.firstLine || '无内容'}</div>`;
+        });
     }
 
     private hidePreview(): void {

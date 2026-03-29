@@ -385,3 +385,122 @@
 .logseq-block-ref:hover {
 	background-color: rgba(139, 92, 246, 0.25);
 }
+
+.logseq-block-preview-header {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding-bottom: 6px;
+	margin-bottom: 6px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.logseq-block-preview-file {
+	color: var(--text-normal);
+	font-weight: 500;
+}
+
+.logseq-block-preview-line {
+	color: var(--text-muted);
+	font-size: 0.8em;
+}
+
+.logseq-block-preview-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 4px 0;
+	margin-bottom: 6px;
+}
+
+.logseq-preview-status {
+	font-size: 0.8em;
+	font-weight: 500;
+	padding: 2px 6px;
+	border-radius: 3px;
+}
+
+.logseq-preview-status.logseq-status-now {
+	background: rgba(239, 68, 68, 0.15);
+	color: #ef4444;
+}
+
+.logseq-preview-status.logseq-status-doing {
+	background: rgba(249, 115, 22, 0.15);
+	color: #f97316;
+}
+
+.logseq-preview-status.logseq-status-todo {
+	background: rgba(59, 130, 246, 0.15);
+	color: #3b82f6;
+}
+
+.logseq-preview-status.logseq-status-later {
+	background: rgba(107, 114, 128, 0.15);
+	color: #6b7280;
+}
+
+.logseq-preview-status.logseq-status-done {
+	background: rgba(34, 197, 94, 0.15);
+	color: #22c55e;
+}
+
+.logseq-preview-status.logseq-status-cancelled {
+	background: rgba(156, 163, 175, 0.15);
+	color: #9ca3af;
+}
+
+.logseq-preview-scheduled {
+	font-size: 0.8em;
+	color: #8b5cf6;
+	padding: 2px 6px;
+	background: rgba(139, 92, 246, 0.1);
+	border-radius: 3px;
+}
+
+.logseq-preview-deadline {
+	font-size: 0.8em;
+	color: #dc2626;
+	padding: 2px 6px;
+	background: rgba(220, 38, 38, 0.1);
+	border-radius: 3px;
+}
+
+.logseq-preview-priority {
+	font-size: 0.8em;
+	font-weight: 600;
+	padding: 2px 6px;
+	border-radius: 3px;
+}
+
+.logseq-preview-priority-p0 {
+	background: rgba(239, 68, 68, 0.15);
+	color: #ef4444;
+}
+
+.logseq-preview-priority-p1 {
+	background: rgba(249, 115, 22, 0.15);
+	color: #f97316;
+}
+
+.logseq-preview-priority-p2 {
+	background: rgba(59, 130, 246, 0.15);
+	color: #3b82f6;
+}
+
+.logseq-block-preview-content {
+	padding: 4px 0;
+}
+
+.logseq-block-preview-content-line {
+	padding: 2px 0;
+	line-height: 1.5;
+}
+
+.logseq-block-preview-loading {
+	color: var(--text-muted);
+	font-size: 0.85em;
+	padding: 4px 0;
+}

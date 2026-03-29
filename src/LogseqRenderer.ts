@@ -3,6 +3,7 @@ import { STATUS_ICONS, TodoStatus, LogseqSettings } from './TodoItem';
 import { createLogseqEditorExtensions, setCurrentSettings, setCurrentBlockIndex } from './EditorExtension';
 import { isPathInLogseqDirs } from './PathUtils';
 import { BlockIndexManager } from './BlockIndex';
+import { createPreviewHtml, getFileName, BlockLocation } from './BlockPreviewUtils';
 
 export class LogseqRenderer {
     private plugin: Plugin;
@@ -560,7 +561,7 @@ export class LogseqRenderer {
         
         const location = this.blockIndex.getLocation(uuid);
         if (location) {
-            header.innerHTML = `<span class="logseq-block-preview-file">📄 ${this.getFileName(location.filePath)}</span><span class="logseq-block-preview-line">· 行 ${location.lineNumber}</span>`;
+            header.innerHTML = `<span class="logseq-block-preview-file">📄 ${getFileName(location.filePath)}</span><span class="logseq-block-preview-line">· 行 ${location.lineNumber}</span>`;
         }
         
         this.blockIndex.getFullContent(uuid).then((lines) => {
@@ -571,23 +572,16 @@ export class LogseqRenderer {
                 return;
             }
             
-            const metadata = this.parseBlockMetadata(lines);
+            const blockLocation: BlockLocation | undefined = location ? {
+                filePath: location.filePath,
+                lineNumber: location.lineNumber,
+                firstLine: location.firstLine
+            } : undefined;
             
-            let metaHtml = '';
-            if (metadata.status) {
-                const statusClass = `logseq-status-${metadata.status.toLowerCase()}`;
-                const icon = STATUS_ICONS[metadata.status as TodoStatus] || '';
-                metaHtml += `<span class="logseq-preview-status ${statusClass}">${icon} ${metadata.status}</span>`;
-            }
-            if (metadata.scheduled) {
-                metaHtml += `<span class="logseq-preview-scheduled">${metadata.scheduled}</span>`;
-            }
-            if (metadata.deadline) {
-                metaHtml += `<span class="logseq-preview-deadline">${metadata.deadline}</span>`;
-            }
-            if (metadata.priority) {
-                const priorityClass = `logseq-preview-priority-${metadata.priority.toLowerCase()}`;
-                metaHtml += `<span class="logseq-preview-priority ${priorityClass}">#${metadata.priority}</span>`;
+            const { headerHtml, metaHtml, contentHtml } = createPreviewHtml(lines, blockLocation);
+            
+            if (headerHtml) {
+                header.innerHTML = headerHtml;
             }
             
             if (metaHtml) {
@@ -601,9 +595,6 @@ export class LogseqRenderer {
                 }
             }
             
-            const contentHtml = metadata.contentLines
-                .map(l => `<div class="logseq-block-preview-content-line">${l}</div>`)
-                .join('');
             contentContainer.innerHTML = contentHtml || `<div class="logseq-block-preview-loading">${location?.firstLine || '无内容'}</div>`;
         });
     }
@@ -891,63 +882,4 @@ export class LogseqRenderer {
         return dateTime;
     }
 
-    private getFileName(path: string): string {
-        const parts = path.split('/');
-        const fileName = parts[parts.length - 1];
-        return fileName.replace(/\.md$/, '');
     }
-
-    private parseBlockMetadata(lines: string[]): {
-        status: string | null;
-        scheduled: string | null;
-        deadline: string | null;
-        priority: string | null;
-        contentLines: string[];
-    } {
-        let status: string | null = null;
-        let scheduled: string | null = null;
-        let deadline: string | null = null;
-        let priority: string | null = null;
-        const contentLines: string[] = [];
-
-        for (const line of lines) {
-            const statusMatch = line.match(/^\s*[-*+]\s*(NOW|DOING|LATER|TODO|DONE|CANCELLED)\s/i) 
-                || line.match(/^(NOW|DOING|LATER|TODO|DONE|CANCELLED)\s/i);
-            if (statusMatch && !status) {
-                status = statusMatch[1].toUpperCase();
-            }
-
-            const scheduledMatch = line.match(/SCHEDULED:\s*<([^>]+)>/i);
-            if (scheduledMatch && !scheduled) {
-                scheduled = scheduledMatch[1];
-            }
-
-            const deadlineMatch = line.match(/DEADLINE:\s*<([^>]+)>/i);
-            if (deadlineMatch && !deadline) {
-                deadline = deadlineMatch[1];
-            }
-
-            const priorityMatch = line.match(/#(P[0-2])\b/i);
-            if (priorityMatch && !priority) {
-                priority = priorityMatch[1].toUpperCase();
-            }
-
-            let cleanLine = line
-                .replace(/^(\s*)[-*+]\s*/, '')
-                .replace(/^(\s+)/, '')
-                .replace(/^(NOW|DOING|LATER|TODO|DONE|CANCELLED)\s+/i, '')
-                .replace(/SCHEDULED:\s*<[^>]+>/gi, '')
-                .replace(/DEADLINE:\s*<[^>]+>/gi, '')
-                .replace(/#P[0-2]\b/i, '')
-                .replace(/id::\s*[a-f0-9-]+/i, '')
-                .replace(/\(\([a-f0-9-]+\)\)/g, '')
-                .trim();
-
-            if (cleanLine) {
-                contentLines.push(cleanLine);
-            }
-        }
-
-        return { status, scheduled, deadline, priority, contentLines };
-    }
-}
