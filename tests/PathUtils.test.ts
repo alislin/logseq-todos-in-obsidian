@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizePath, isPathInLogseqDirs, parseMultiplePaths } from '../src/PathUtils';
+import { normalizePath, isPathInLogseqDirs, parseMultiplePaths, isValidLogseqContentPath } from '../src/PathUtils';
 
 describe('PathUtils', () => {
     describe('normalizePath', () => {
@@ -113,6 +113,66 @@ describe('PathUtils', () => {
 
         it('should handle single path', () => {
             expect(parseMultiplePaths('工作日志')).toEqual(['工作日志']);
+        });
+    });
+
+    describe('isValidLogseqContentPath', () => {
+        const logseqPaths = ['工作日志'];
+        const journalsPath = 'journals';
+        const pagesPath = 'pages';
+
+        it('should return true for file in journals directory', () => {
+            expect(isValidLogseqContentPath('工作日志/journals/2026_03_28.md', logseqPaths, journalsPath, pagesPath)).toBe(true);
+        });
+
+        it('should return true for file in pages directory', () => {
+            expect(isValidLogseqContentPath('工作日志/pages/task.md', logseqPaths, journalsPath, pagesPath)).toBe(true);
+        });
+
+        it('should return true for nested file in journals', () => {
+            expect(isValidLogseqContentPath('工作日志/journals/2026/2026_03_28.md', logseqPaths, journalsPath, pagesPath)).toBe(true);
+        });
+
+        it('should return false for file in backup directory (logseq/bak)', () => {
+            expect(isValidLogseqContentPath('工作日志/logseq/bak/journals/2026_03_27/backup.md', logseqPaths, journalsPath, pagesPath)).toBe(false);
+        });
+
+        it('should return false for file in logseq root directory', () => {
+            expect(isValidLogseqContentPath('工作日志/logseq/config.edn', logseqPaths, journalsPath, pagesPath)).toBe(false);
+        });
+
+        it('should return false for file in root logseq directory', () => {
+            expect(isValidLogseqContentPath('工作日志/file.md', logseqPaths, journalsPath, pagesPath)).toBe(false);
+        });
+
+        it('should return false for file outside logseq directory', () => {
+            expect(isValidLogseqContentPath('其他目录/journals/file.md', logseqPaths, journalsPath, pagesPath)).toBe(false);
+        });
+
+        it('should return false for empty file path', () => {
+            expect(isValidLogseqContentPath('', logseqPaths, journalsPath, pagesPath)).toBe(false);
+        });
+
+        it('should return false for empty logseq paths', () => {
+            expect(isValidLogseqContentPath('工作日志/journals/file.md', [], journalsPath, pagesPath)).toBe(false);
+        });
+
+        it('should handle multiple logseq paths', () => {
+            const multiPaths = ['工作日志', '项目笔记'];
+            expect(isValidLogseqContentPath('项目笔记/pages/task.md', multiPaths, journalsPath, pagesPath)).toBe(true);
+            expect(isValidLogseqContentPath('项目笔记/logseq/bak/file.md', multiPaths, journalsPath, pagesPath)).toBe(false);
+        });
+
+        it('should handle different path separators', () => {
+            expect(isValidLogseqContentPath('工作日志\\journals\\2026_03_28.md', logseqPaths, journalsPath, pagesPath)).toBe(true);
+        });
+
+        it('should not match partial directory name in journals', () => {
+            expect(isValidLogseqContentPath('工作日志/journals_backup/file.md', logseqPaths, journalsPath, pagesPath)).toBe(false);
+        });
+
+        it('should not match partial directory name in pages', () => {
+            expect(isValidLogseqContentPath('工作日志/pages_backup/file.md', logseqPaths, journalsPath, pagesPath)).toBe(false);
         });
     });
 });

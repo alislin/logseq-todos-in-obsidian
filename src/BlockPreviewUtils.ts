@@ -119,7 +119,7 @@ export function createPreviewHtml(
     
     let headerHtml = '';
     if (location) {
-        headerHtml = `<span class="logseq-block-preview-file">📄 ${getFileName(location.filePath)}</span><span class="logseq-block-preview-line">· 行 ${location.lineNumber}</span>`;
+        headerHtml = `<span class="logseq-block-preview-file">📄 ${getFileName(location.filePath)}</span><span class="logseq-block-preview-line">· 第 ${location.lineNumber} 行</span>`;
     } else {
         headerHtml = `<span class="logseq-block-preview-file">📄 预览</span>`;
     }

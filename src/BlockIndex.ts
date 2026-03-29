@@ -1,6 +1,6 @@
 import { App, TFile, TAbstractFile } from 'obsidian';
 import { LogseqSettings } from './TodoItem';
-import { isPathInLogseqDirs } from './PathUtils';
+import { isPathInLogseqDirs, isValidLogseqContentPath } from './PathUtils';
 
 interface BlockLocation {
     uuid: string;
@@ -95,7 +95,6 @@ export class BlockIndexManager {
             const lines = content.split('\n');
             
             const uuidPattern = /id::\s*([a-f0-9-]+)/i;
-            const blockRefPattern = /\(\(([a-f0-9-]+)\)\)/;
             
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
@@ -110,19 +109,6 @@ export class BlockIndexManager {
                         filePath: file.path,
                         lineNumber: i,
                         firstLine: prevLine
-                    });
-                }
-                
-                const refMatch = line.match(blockRefPattern);
-                if (refMatch) {
-                    const uuid = refMatch[1];
-                    const cleanedLine = this.cleanLine(line);
-                    
-                    this.index.set(uuid, {
-                        uuid,
-                        filePath: file.path,
-                        lineNumber: i,
-                        firstLine: cleanedLine
                     });
                 }
             }
@@ -223,7 +209,8 @@ export class BlockIndexManager {
             }
         }
         
-        if (isPathInLogseqDirs(file.path, this.getSettings().logseqPaths)) {
+        const settings = this.getSettings();
+        if (isValidLogseqContentPath(file.path, settings.logseqPaths, settings.journalsPath, settings.pagesPath)) {
             await this.indexFile(file);
         }
     }

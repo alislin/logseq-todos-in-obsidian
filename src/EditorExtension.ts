@@ -211,7 +211,7 @@ class BlockRefWidget extends WidgetType {
         
         const location = currentBlockIndex.getLocation(this.uuid);
         if (location) {
-            header.innerHTML = `<span class="logseq-block-preview-file">📄 ${location.filePath.split('/').pop()?.replace('.md', '') || location.filePath}</span><span class="logseq-block-preview-line">· 行 ${location.lineNumber}</span>`;
+            header.innerHTML = `<span class="logseq-block-preview-file">📄 ${location.filePath.split('/').pop()?.replace('.md', '') || location.filePath}</span><span class="logseq-block-preview-line">· 第 ${location.lineNumber} 行</span>`;
         }
         
         currentBlockIndex.getFullContent(this.uuid).then((lines) => {

@@ -32,3 +32,34 @@ export function parseMultiplePaths(input: string): string[] {
         .map(p => p.trim())
         .filter(p => p.length > 0);
 }
+
+export function isValidLogseqContentPath(
+    filePath: string,
+    logseqPaths: string[],
+    journalsPath: string,
+    pagesPath: string
+): boolean {
+    if (!filePath || logseqPaths.length === 0) {
+        return false;
+    }
+
+    const normalizedFile = normalizePath(filePath);
+
+    for (const basePath of logseqPaths) {
+        if (!basePath) continue;
+        
+        const normalizedBase = normalizePath(basePath);
+        const journalsDir = `${normalizedBase}/${journalsPath}`;
+        const pagesDir = `${normalizedBase}/${pagesPath}`;
+
+        if (normalizedFile.startsWith(journalsDir + '/') || normalizedFile === journalsDir) {
+            return true;
+        }
+
+        if (normalizedFile.startsWith(pagesDir + '/') || normalizedFile === pagesDir) {
+            return true;
+        }
+    }
+
+    return false;
+}
