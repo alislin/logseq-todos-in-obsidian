@@ -623,6 +623,8 @@ export class LogseqRenderer {
             
             const contentText = lines.join('\n');
             
+            contentContainer.innerHTML = '';
+            
             const tempComponent = new Component();
             tempComponent.load();
             
